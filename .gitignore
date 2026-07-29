@@ -13,6 +13,7 @@ node_modules/
 .poc/extension-registry/dist/
 .poc/extension-registry/vsix/
 .poc/opensumi-web/dist/
+.poc/workspace/
 
 # 正式工程（zifu / langhuan / taixu / dongfu）的预期产物占位
 zifu/dist/
