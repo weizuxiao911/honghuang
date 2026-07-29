@@ -8,17 +8,19 @@
 ###   2. kubectl apply -f dongfu/k8s/dev.yaml
 ###   3. kubectl wait --for=condition=ready pod -l app=dongfu -n honghuang-dongfu
 ###
-### 端口约定：NodePort 30496 -> 容器 4096
+### 访问路径：Ingress(df-dev.localhost) -> Service(80) -> Pod(4096)
+###   本地通过 ingress-nginx-controller 暴露在 http://localhost/(docker-desktop 默认)
+###   完整 URL: http://df-dev.localhost/global/health
 ###
 ### 验收项：
-###   1. K8s 部署可达性（NodePort + 健康）
+###   1. K8s 部署可达性（Ingress + 健康）
 ###   2. OpenAPI 规范可拉
 ###   3. 会话核心 API（列/建/查）
 ###   4. 文件系统（PVC /workspace 挂载）
 ###   5. PTY 写文件通道（验证 PVC 落盘）
 ###   6. v2 API（生产推荐路由）
 
-@base = http://127.0.0.1:30496
+@base = http://df-dev.localhost
 @sid =
 
 
@@ -26,7 +28,7 @@
 ## 1. K8s 部署可达性
 ############################################################
 
-### 1.1 外部访问 NodePort 30496 + 健康检查
+### 1.1 外部通过 Ingress(df-dev.localhost) 访问 + 健康检查
 # @name 健康检查
 GET {{base}}/global/health
 Accept: application/json

@@ -6,9 +6,11 @@
 #   - /root/.config      运行时(emptyDir,重启可丢;生产由 taixu 注入)
 #   - /root/.local       运行时(emptyDir,重启可丢;生产由 taixu 挂独立 PVC)
 #
-# 本地访问: NodePort 30496 -> 容器 4096
+# 访问路径: Ingress(dongfu.local) -> Service(80) -> Pod(4096)
+#   本地访问: 通过 ingress-nginx-controller NodePort 31071 + Host: dongfu.local
+#     或 kubectl port-forward svc/ingress-nginx-controller 8080:80 -n ingress + Host: dongfu.local
 # 一次性应用: kubectl apply -f dongfu/k8s/dev.yaml
-# 健康检查: curl -H 'Accept:application/json' http://127.0.0.1:30496/global/health
+# 健康检查: curl -H 'Host: dongfu.local' -H 'Accept:application/json' http://localhost:8080/global/health
 #
 # 不注入 OPENCODE_CONFIG,避免 opencode schema 兼容性问题;业务配置由 taixu 在生产环境注入。
 
@@ -101,13 +103,39 @@ metadata:
   labels:
     app: dongfu
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: dongfu
     runtimeId: rt-dev
   ports:
-    - port: 4096
+    - port: 80
       targetPort: 4096
-      nodePort: 30496
       protocol: TCP
       name: agent
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dongfu-dev
+  namespace: honghuang-dongfu
+  labels:
+    app: dongfu
+  annotations:
+    # SSE 长连接透传所需
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # 大报文支持(opencode /doc 478KB+)
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: df-dev.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dongfu-dev
+                port:
+                  number: 80
