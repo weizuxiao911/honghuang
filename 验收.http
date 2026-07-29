@@ -1,6 +1,6 @@
 ### dongfu（洞府）K8s 部署验收测试
 ###
-### 唯一事实源: ../设计文档.md 第四章「dongfu（洞府）」
+### 唯一事实源: ./设计文档.md 第四章「dongfu（洞府）」
 ###
 ### 用法：VS Code REST Client（humao.rest-client）逐条 Send Request
 ### 前置条件：
