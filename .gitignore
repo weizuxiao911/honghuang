@@ -1,0 +1,42 @@
+# 依赖
+node_modules/
+
+# 过程产物统一放 .cache/（不入库）
+.cache/
+
+# 调研产物（.poc/）的运行时与构建产物
+.poc/opencode-docker/workspace/
+.poc/opencode-docker/data/
+.poc/opencode-docker/config/
+.poc/agent-extensions/*/out/
+.poc/agent-extensions/*/*.vsix
+.poc/extension-registry/dist/
+.poc/extension-registry/vsix/
+.poc/opensumi-web/dist/
+
+# 正式工程（zifu / langhuan / taixu / dongfu）的预期产物占位
+zifu/dist/
+zifu/out/
+zifu/*.vsix
+langhuan/target/
+langhuan/build/
+langhuan/*.jar
+taixu/target/
+taixu/build/
+taixu/*.jar
+taixu/k8s/local/
+dongfu/build/
+dongfu/dist/
+dongfu/workspace/
+dongfu/data/
+dongfu/config/
+
+# 编辑器/系统
+.DS_Store
+.idea/
+.vscode/
+*.log
+*.iml
+*.classpath
+*.project
+.settings/

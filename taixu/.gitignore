@@ -1,0 +1,28 @@
+# 依赖
+node_modules/
+
+# Java 构建产物
+target/
+build/
+*.jar
+*.war
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+.settings/
+
+# K8s 资源模板本地副本（按需）
+k8s/local/
+*.kubeconfig
+
+# 运行时临时产物
+.cache/
+logs/
+*.log
+
+# 编辑器/系统
+.DS_Store

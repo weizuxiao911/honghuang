@@ -1,0 +1,1695 @@
+### opencode serve — 全部 API（188 个端点，自动生成自运行实例 /doc）
+### 用法：VS Code REST Client 逐条 Send Request。
+### 说明：
+###   - 路径参数（sid/msgId 等）已抽成变量，运行前用真实值填写下方 @ 定义
+###   - provider/model 留空即用服务端默认；也可填 volcengine-agent-plan / ark-code-latest
+###   - 请求体为 schema 字段骨架，值需按需填写（"" 为占位）
+
+@base = http://127.0.0.1:24096
+@provider =
+@model =
+@agent = build
+@attemptId =
+@credId =
+@id =
+@integrationId =
+@msgId =
+@partId =
+@permId =
+@projId =
+@ptyId =
+@reqId =
+@sid =
+
+
+############################################################
+## 常用示例（可直接运行，含完整请求体）
+############################################################
+
+### 创建会话（返回 id，填入上方 @sid）
+# @name 创建会话
+POST {{base}}/session
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "demo"
+}
+
+
+### 发送消息 — 同步等待（parts 必填；provider/model 可留空用默认）
+POST {{base}}/session/{{sid}}/message
+Accept: application/json
+Content-Type: application/json
+
+{
+  "agent": "{{agent}}",
+  "parts": [
+    { "type": "text", "text": "在 /workspace 下创建 hello.txt，内容为 HELLO" }
+  ]
+}
+
+
+### 发送消息 — 异步（立即返回 204，结果走 SSE / 消息历史）
+POST {{base}}/session/{{sid}}/prompt_async
+Accept: application/json
+Content-Type: application/json
+
+{
+  "agent": "{{agent}}",
+  "parts": [
+    { "type": "text", "text": "逐步创建一个 Node 项目骨架" }
+  ]
+}
+
+
+### 在会话中运行 shell
+POST {{base}}/session/{{sid}}/shell
+Accept: application/json
+Content-Type: application/json
+
+{
+  "agent": "{{agent}}",
+  "command": "ls -la /workspace"
+}
+
+
+### 创建 PTY 终端并执行命令
+POST {{base}}/pty
+Accept: application/json
+Content-Type: application/json
+
+{
+  "command": "/bin/bash",
+  "args": ["-c", "echo WRITTEN_BY_PTY > /workspace/pty.txt"],
+  "cwd": "/workspace"
+}
+
+
+############################################################
+## agent
+############################################################
+
+### 1. 列出所有 agent
+GET {{base}}/agent
+Accept: application/json
+
+
+############################################################
+## auth
+############################################################
+
+### 2. 移除鉴权凭证
+DELETE {{base}}/auth/{{provider}}
+Accept: application/json
+
+
+### 3. 设置鉴权凭证
+PUT {{base}}/auth/{{provider}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "type": "",
+  "refresh": "",
+  "access": "",
+  "expires": ""
+}
+
+
+############################################################
+## command
+############################################################
+
+### 4. 列出命令
+GET {{base}}/command
+Accept: application/json
+
+
+############################################################
+## config
+############################################################
+
+### 5. 获取配置
+GET {{base}}/config
+Accept: application/json
+
+
+### 6. 更新配置
+PATCH {{base}}/config
+Accept: application/json
+Content-Type: application/json
+
+{
+  "$schema": "",
+  "shell": "",
+  "logLevel": "",
+  "server": {
+    "port": "",
+    "hostname": "",
+    "mdns": "",
+    "mdnsDomain": "",
+    "cors": ""
+  },
+  "command": {},
+  "skills": {
+    "paths": [],
+    "urls": []
+  },
+  "references": {},
+  "reference": {},
+  "watcher": {
+    "ignore": []
+  },
+  "snapshot": false,
+  "plugin": [],
+  "share": "",
+  "autoshare": false,
+  "autoupdate": false,
+  "disabled_providers": [
+    ""
+  ],
+  "enabled_providers": [
+    ""
+  ],
+  "model": "",
+  "small_model": "",
+  "default_agent": "",
+  "subagent_depth": 0,
+  "username": "",
+  "mode": {
+    "build": "",
+    "plan": ""
+  },
+  "agent": {
+    "plan": "",
+    "build": "",
+    "general": "",
+    "explore": "",
+    "title": "",
+    "summary": "",
+    "compaction": ""
+  },
+  "provider": {},
+  "mcp": {},
+  "formatter": false,
+  "lsp": false,
+  "instructions": [
+    ""
+  ],
+  "layout": "",
+  "permission": "",
+  "tools": {},
+  "attachment": {
+    "image": ""
+  },
+  "enterprise": {
+    "url": ""
+  },
+  "tool_output": {
+    "max_lines": 0,
+    "max_bytes": 0
+  },
+  "compaction": {
+    "auto": false,
+    "prune": false,
+    "tail_turns": 0,
+    "preserve_recent_tokens": 0,
+    "reserved": 0
+  },
+  "experimental": {
+    "disable_paste_summary": false,
+    "batch_tool": false,
+    "openTelemetry": false,
+    "primary_tools": [],
+    "continue_loop_on_deny": false,
+    "mcp_timeout": 0,
+    "policies": []
+  }
+}
+
+
+### 7. 列出配置的 provider
+GET {{base}}/config/providers
+Accept: application/json
+
+
+############################################################
+## event
+############################################################
+
+### 8. 订阅全局事件流(SSE)
+GET {{base}}/event
+Accept: application/json
+
+
+############################################################
+## experimental
+############################################################
+
+### 9. 获取实验能力
+GET {{base}}/experimental/capabilities
+Accept: application/json
+
+
+### 10. 获取当前 Console provider 元数据
+GET {{base}}/experimental/console
+Accept: application/json
+
+
+### 11. 列出可切换的 Console 组织
+GET {{base}}/experimental/console/orgs
+Accept: application/json
+
+
+### 12. 切换 Console 组织
+POST {{base}}/experimental/console/switch
+Accept: application/json
+Content-Type: application/json
+
+{
+  "accountID": "",
+  "orgID": ""
+}
+
+
+### 13. 迁移会话
+POST {{base}}/experimental/control-plane/move-session
+Accept: application/json
+Content-Type: application/json
+
+{
+  "sessionID": "",
+  "destination": {
+    "directory": ""
+  }
+}
+
+
+### 14. 删除项目副本
+DELETE {{base}}/experimental/project/{{projId}}/copy
+Accept: application/json
+Content-Type: application/json
+
+{
+  "directory": "",
+  "force": false
+}
+
+
+### 15. 创建项目副本
+POST {{base}}/experimental/project/{{projId}}/copy
+Accept: application/json
+Content-Type: application/json
+
+{
+  "strategy": "",
+  "directory": ""
+}
+
+
+### 16. 生成项目副本名
+POST {{base}}/experimental/project/{{projId}}/copy/generate-name
+Accept: application/json
+Content-Type: application/json
+
+{
+  "context": ""
+}
+
+
+### 17. 刷新项目副本
+POST {{base}}/experimental/project/{{projId}}/copy/refresh
+Accept: application/json
+
+
+### 18. 获取 MCP 资源
+GET {{base}}/experimental/resource
+Accept: application/json
+
+
+### 19. 列出会话
+GET {{base}}/experimental/session
+Accept: application/json
+
+
+### 20. 后台运行子智能体
+POST {{base}}/experimental/session/{{sid}}/background
+Accept: application/json
+
+
+### 21. 列出工具(含 schema)
+GET {{base}}/experimental/tool
+Accept: application/json
+
+
+### 22. 列出工具 ID
+GET {{base}}/experimental/tool/ids
+Accept: application/json
+
+
+### 23. 列出工作区
+GET {{base}}/experimental/workspace
+Accept: application/json
+
+
+### 24. 创建工作区
+POST {{base}}/experimental/workspace
+Accept: application/json
+Content-Type: application/json
+
+{
+  "type": ""
+}
+
+
+### 25. 移除工作区
+DELETE {{base}}/experimental/workspace/{{id}}
+Accept: application/json
+
+
+### 26. 列出工作区适配器
+GET {{base}}/experimental/workspace/adapter
+Accept: application/json
+
+
+### 27. 工作区状态
+GET {{base}}/experimental/workspace/status
+Accept: application/json
+
+
+### 28. 同步工作区列表
+POST {{base}}/experimental/workspace/sync-list
+Accept: application/json
+
+
+### 29. 迁移会话进工作区
+POST {{base}}/experimental/workspace/warp
+Accept: application/json
+Content-Type: application/json
+
+{
+  "id": "",
+  "sessionID": ""
+}
+
+
+### 30. 移除 worktree
+DELETE {{base}}/experimental/worktree
+Accept: application/json
+Content-Type: application/json
+
+{
+  "directory": ""
+}
+
+
+### 31. 列出 worktree
+GET {{base}}/experimental/worktree
+Accept: application/json
+
+
+### 32. 创建 worktree
+POST {{base}}/experimental/worktree
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "",
+  "startCommand": ""
+}
+
+
+### 33. 重置 worktree
+POST {{base}}/experimental/worktree/reset
+Accept: application/json
+Content-Type: application/json
+
+{
+  "directory": ""
+}
+
+
+############################################################
+## file
+############################################################
+
+### 34. 列出文件
+GET {{base}}/file
+Accept: application/json
+
+
+### 35. 读取文件内容
+GET {{base}}/file/content
+Accept: application/json
+
+
+### 36. 获取文件状态
+GET {{base}}/file/status
+Accept: application/json
+
+
+############################################################
+## find
+############################################################
+
+### 37. 全文搜索
+GET {{base}}/find
+Accept: application/json
+
+
+### 38. 按名查找文件
+GET {{base}}/find/file
+Accept: application/json
+
+
+### 39. 查找符号
+GET {{base}}/find/symbol
+Accept: application/json
+
+
+############################################################
+## formatter
+############################################################
+
+### 40. 获取格式化器状态
+GET {{base}}/formatter
+Accept: application/json
+
+
+############################################################
+## global
+############################################################
+
+### 41. 获取全局配置
+GET {{base}}/global/config
+Accept: application/json
+
+
+### 42. 更新全局配置
+PATCH {{base}}/global/config
+Accept: application/json
+Content-Type: application/json
+
+{
+  "$schema": "",
+  "shell": "",
+  "logLevel": "",
+  "server": {
+    "port": "",
+    "hostname": "",
+    "mdns": "",
+    "mdnsDomain": "",
+    "cors": ""
+  },
+  "command": {},
+  "skills": {
+    "paths": [],
+    "urls": []
+  },
+  "references": {},
+  "reference": {},
+  "watcher": {
+    "ignore": []
+  },
+  "snapshot": false,
+  "plugin": [],
+  "share": "",
+  "autoshare": false,
+  "autoupdate": false,
+  "disabled_providers": [
+    ""
+  ],
+  "enabled_providers": [
+    ""
+  ],
+  "model": "",
+  "small_model": "",
+  "default_agent": "",
+  "subagent_depth": 0,
+  "username": "",
+  "mode": {
+    "build": "",
+    "plan": ""
+  },
+  "agent": {
+    "plan": "",
+    "build": "",
+    "general": "",
+    "explore": "",
+    "title": "",
+    "summary": "",
+    "compaction": ""
+  },
+  "provider": {},
+  "mcp": {},
+  "formatter": false,
+  "lsp": false,
+  "instructions": [
+    ""
+  ],
+  "layout": "",
+  "permission": "",
+  "tools": {},
+  "attachment": {
+    "image": ""
+  },
+  "enterprise": {
+    "url": ""
+  },
+  "tool_output": {
+    "max_lines": 0,
+    "max_bytes": 0
+  },
+  "compaction": {
+    "auto": false,
+    "prune": false,
+    "tail_turns": 0,
+    "preserve_recent_tokens": 0,
+    "reserved": 0
+  },
+  "experimental": {
+    "disable_paste_summary": false,
+    "batch_tool": false,
+    "openTelemetry": false,
+    "primary_tools": [],
+    "continue_loop_on_deny": false,
+    "mcp_timeout": 0,
+    "policies": []
+  }
+}
+
+
+### 43. 销毁实例
+POST {{base}}/global/dispose
+Accept: application/json
+
+
+### 44. 获取全局事件流
+GET {{base}}/global/event
+Accept: application/json
+
+
+### 45. 获取健康状态
+GET {{base}}/global/health
+Accept: application/json
+
+
+### 46. 升级 opencode
+POST {{base}}/global/upgrade
+Accept: application/json
+Content-Type: application/json
+
+{
+  "target": ""
+}
+
+
+############################################################
+## instance
+############################################################
+
+### 47. 销毁实例
+POST {{base}}/instance/dispose
+Accept: application/json
+
+
+############################################################
+## log
+############################################################
+
+### 48. 写日志
+POST {{base}}/log
+Accept: application/json
+Content-Type: application/json
+
+{
+  "service": "",
+  "level": "",
+  "message": ""
+}
+
+
+############################################################
+## lsp
+############################################################
+
+### 49. 获取 LSP 状态
+GET {{base}}/lsp
+Accept: application/json
+
+
+############################################################
+## mcp
+############################################################
+
+### 50. 获取 MCP 状态
+GET {{base}}/mcp
+Accept: application/json
+
+
+### 51. 添加 MCP 服务器
+POST {{base}}/mcp
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "",
+  "config": {
+    "type": "",
+    "command": ""
+  }
+}
+
+
+### 52. 移除 MCP OAuth
+DELETE {{base}}/mcp/{{mcpName}}/auth
+Accept: application/json
+
+
+### 53. 启动 MCP OAuth
+POST {{base}}/mcp/{{mcpName}}/auth
+Accept: application/json
+
+
+### 54. MCP OAuth 认证
+POST {{base}}/mcp/{{mcpName}}/auth/authenticate
+Accept: application/json
+
+
+### 55. 完成 MCP OAuth
+POST {{base}}/mcp/{{mcpName}}/auth/callback
+Accept: application/json
+Content-Type: application/json
+
+{
+  "code": ""
+}
+
+
+### 56. 连接 MCP 服务器
+POST {{base}}/mcp/{{mcpName}}/connect
+Accept: application/json
+
+
+### 57. 断开 MCP 服务器
+POST {{base}}/mcp/{{mcpName}}/disconnect
+Accept: application/json
+
+
+############################################################
+## path
+############################################################
+
+### 58. 获取路径/worktree
+GET {{base}}/path
+Accept: application/json
+
+
+############################################################
+## permission
+############################################################
+
+### 59. 列出待处理权限
+GET {{base}}/permission
+Accept: application/json
+
+
+### 60. 响应权限请求
+POST {{base}}/permission/{{reqId}}/reply
+Accept: application/json
+Content-Type: application/json
+
+{
+  "reply": ""
+}
+
+
+############################################################
+## project
+############################################################
+
+### 61. 列出所有项目
+GET {{base}}/project
+Accept: application/json
+
+
+### 62. 更新项目
+PATCH {{base}}/project/{{projId}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "",
+  "icon": {
+    "url": "",
+    "override": "",
+    "color": ""
+  },
+  "commands": {
+    "start": ""
+  }
+}
+
+
+### 63. 列出项目目录
+GET {{base}}/project/{{projId}}/directories
+Accept: application/json
+
+
+### 64. 获取当前项目
+GET {{base}}/project/current
+Accept: application/json
+
+
+### 65. 初始化 git 仓库
+POST {{base}}/project/git/init
+Accept: application/json
+
+
+############################################################
+## provider
+############################################################
+
+### 66. 列出 provider
+GET {{base}}/provider
+Accept: application/json
+
+
+### 67. 启动 OAuth 授权
+POST {{base}}/provider/{{provider}}/oauth/authorize
+Accept: application/json
+Content-Type: application/json
+
+{
+  "method": 0
+}
+
+
+### 68. 处理 OAuth 回调
+POST {{base}}/provider/{{provider}}/oauth/callback
+Accept: application/json
+Content-Type: application/json
+
+{
+  "method": 0
+}
+
+
+### 69. 获取 provider 鉴权方式
+GET {{base}}/provider/auth
+Accept: application/json
+
+
+############################################################
+## pty
+############################################################
+
+### 70. 列出 PTY 会话
+GET {{base}}/pty
+Accept: application/json
+
+
+### 71. 创建 PTY 终端会话
+POST {{base}}/pty
+Accept: application/json
+Content-Type: application/json
+
+{
+  "command": "",
+  "args": [
+    ""
+  ],
+  "cwd": "",
+  "title": "",
+  "env": {}
+}
+
+
+### 72. 移除 PTY 会话
+DELETE {{base}}/pty/{{ptyId}}
+Accept: application/json
+
+
+### 73. 获取 PTY 会话
+GET {{base}}/pty/{{ptyId}}
+Accept: application/json
+
+
+### 74. 更新 PTY 会话
+PUT {{base}}/pty/{{ptyId}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "",
+  "size": {
+    "rows": 0,
+    "cols": 0
+  }
+}
+
+
+### 75. 连接 PTY 会话(WebSocket)
+GET {{base}}/pty/{{ptyId}}/connect
+Accept: application/json
+
+
+### 76. 创建 PTY WebSocket 令牌
+POST {{base}}/pty/{{ptyId}}/connect-token
+Accept: application/json
+
+
+### 77. 列出可用 shell
+GET {{base}}/pty/shells
+Accept: application/json
+
+
+############################################################
+## question
+############################################################
+
+### 78. 列出待处理提问
+GET {{base}}/question
+Accept: application/json
+
+
+### 79. 拒绝提问请求
+POST {{base}}/question/{{reqId}}/reject
+Accept: application/json
+
+
+### 80. 回复提问请求
+POST {{base}}/question/{{reqId}}/reply
+Accept: application/json
+Content-Type: application/json
+
+{
+  "answers": [
+    []
+  ]
+}
+
+
+############################################################
+## session
+############################################################
+
+### 81. 列出会话
+GET {{base}}/session
+Accept: application/json
+
+
+### 82. 创建会话
+POST {{base}}/session
+Accept: application/json
+Content-Type: application/json
+
+{
+  "parentID": "",
+  "title": "",
+  "agent": "",
+  "model": {
+    "id": "",
+    "providerID": ""
+  },
+  "metadata": {},
+  "permission": [],
+  "workspaceID": ""
+}
+
+
+### 83. 删除会话
+DELETE {{base}}/session/{{sid}}
+Accept: application/json
+
+
+### 84. 获取会话详情
+GET {{base}}/session/{{sid}}
+Accept: application/json
+
+
+### 85. 更新会话属性
+PATCH {{base}}/session/{{sid}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "",
+  "metadata": {},
+  "permission": [],
+  "time": {
+    "archived": 0
+  }
+}
+
+
+### 86. 中止会话
+POST {{base}}/session/{{sid}}/abort
+Accept: application/json
+
+
+### 87. 获取子会话
+GET {{base}}/session/{{sid}}/children
+Accept: application/json
+
+
+### 88. 执行 slash 命令
+POST {{base}}/session/{{sid}}/command
+Accept: application/json
+Content-Type: application/json
+
+{
+  "arguments": "",
+  "command": ""
+}
+
+
+### 89. 获取消息 diff
+GET {{base}}/session/{{sid}}/diff
+Accept: application/json
+
+
+### 90. 派生会话
+POST {{base}}/session/{{sid}}/fork
+Accept: application/json
+Content-Type: application/json
+
+{
+  "messageID": ""
+}
+
+
+### 91. 初始化会话(生成 AGENTS.md)
+POST {{base}}/session/{{sid}}/init
+Accept: application/json
+Content-Type: application/json
+
+{
+  "modelID": "",
+  "providerID": "",
+  "messageID": ""
+}
+
+
+### 92. 获取会话消息列表
+GET {{base}}/session/{{sid}}/message
+Accept: application/json
+
+
+### 93. 发送消息(同步等待响应)
+POST {{base}}/session/{{sid}}/message
+Accept: application/json
+Content-Type: application/json
+
+{
+  "parts": []
+}
+
+
+### 94. 删除消息
+DELETE {{base}}/session/{{sid}}/message/{{msgId}}
+Accept: application/json
+
+
+### 95. 获取单条消息
+GET {{base}}/session/{{sid}}/message/{{msgId}}
+Accept: application/json
+
+
+### 96. 删除消息 part
+DELETE {{base}}/session/{{sid}}/message/{{msgId}}/part/{{partId}}
+Accept: application/json
+
+
+### 97. 更新消息 part
+PATCH {{base}}/session/{{sid}}/message/{{msgId}}/part/{{partId}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "id": "",
+  "sessionID": "",
+  "messageID": "",
+  "type": "",
+  "text": ""
+}
+
+
+### 98. 响应权限请求
+POST {{base}}/session/{{sid}}/permissions/{{permId}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "response": ""
+}
+
+
+### 99. 异步发送消息(立即返回)
+POST {{base}}/session/{{sid}}/prompt_async
+Accept: application/json
+Content-Type: application/json
+
+{
+  "parts": []
+}
+
+
+### 100. 回退消息
+POST {{base}}/session/{{sid}}/revert
+Accept: application/json
+Content-Type: application/json
+
+{
+  "messageID": ""
+}
+
+
+### 101. 取消分享会话
+DELETE {{base}}/session/{{sid}}/share
+Accept: application/json
+
+
+### 102. 分享会话
+POST {{base}}/session/{{sid}}/share
+Accept: application/json
+
+
+### 103. 在会话中运行 shell
+POST {{base}}/session/{{sid}}/shell
+Accept: application/json
+Content-Type: application/json
+
+{
+  "agent": "",
+  "command": ""
+}
+
+
+### 104. 总结会话
+POST {{base}}/session/{{sid}}/summarize
+Accept: application/json
+Content-Type: application/json
+
+{
+  "providerID": "",
+  "modelID": ""
+}
+
+
+### 105. 获取会话待办
+GET {{base}}/session/{{sid}}/todo
+Accept: application/json
+
+
+### 106. 恢复已回退的消息
+POST {{base}}/session/{{sid}}/unrevert
+Accept: application/json
+
+
+### 107. 获取会话状态
+GET {{base}}/session/status
+Accept: application/json
+
+
+############################################################
+## skill
+############################################################
+
+### 108. 列出所有 skill
+GET {{base}}/skill
+Accept: application/json
+
+
+############################################################
+## sync
+############################################################
+
+### 109. 列出同步事件
+POST {{base}}/sync/history
+Accept: application/json
+Content-Type: application/json
+
+{}
+
+
+### 110. 重放同步事件
+POST {{base}}/sync/replay
+Accept: application/json
+Content-Type: application/json
+
+{
+  "directory": "",
+  "events": [
+    {
+      "id": "",
+      "aggregateID": "",
+      "seq": 0,
+      "type": "",
+      "data": {}
+    }
+  ]
+}
+
+
+### 111. 启动工作区同步
+POST {{base}}/sync/start
+Accept: application/json
+
+
+### 112. 抢占会话到工作区
+POST {{base}}/sync/steal
+Accept: application/json
+Content-Type: application/json
+
+{
+  "sessionID": ""
+}
+
+
+############################################################
+## vcs
+############################################################
+
+### 113. 获取 VCS 信息
+GET {{base}}/vcs
+Accept: application/json
+
+
+### 114. 应用 VCS 补丁到工作树
+POST {{base}}/vcs/apply
+Accept: application/json
+Content-Type: application/json
+
+{
+  "patch": ""
+}
+
+
+### 115. 获取 VCS diff
+GET {{base}}/vcs/diff
+Accept: application/json
+
+
+### 116. 获取原始 VCS diff
+GET {{base}}/vcs/diff/raw
+Accept: application/json
+
+
+### 117. 获取 VCS 状态
+GET {{base}}/vcs/status
+Accept: application/json
+
+
+############################################################
+## /tui/*（驱动内置 TUI，本方案自研前端一般不用）
+############################################################
+
+### 118. 向 TUI 追加提示词
+POST {{base}}/tui/append-prompt
+Accept: application/json
+Content-Type: application/json
+
+{
+  "text": ""
+}
+
+
+### 119. 清空 TUI 提示词
+POST {{base}}/tui/clear-prompt
+Accept: application/json
+
+
+### 120. 获取下一个 TUI 请求
+GET {{base}}/tui/control/next
+Accept: application/json
+
+
+### 121. 提交 TUI 响应
+POST {{base}}/tui/control/response
+Accept: application/json
+Content-Type: application/json
+
+""
+
+
+### 122. 执行 TUI 命令
+POST {{base}}/tui/execute-command
+Accept: application/json
+Content-Type: application/json
+
+{
+  "command": ""
+}
+
+
+### 123. 打开帮助对话框
+POST {{base}}/tui/open-help
+Accept: application/json
+
+
+### 124. 打开模型选择
+POST {{base}}/tui/open-models
+Accept: application/json
+
+
+### 125. 打开会话选择
+POST {{base}}/tui/open-sessions
+Accept: application/json
+
+
+### 126. 打开主题选择
+POST {{base}}/tui/open-themes
+Accept: application/json
+
+
+### 127. 发布 TUI 事件
+POST {{base}}/tui/publish
+Accept: application/json
+Content-Type: application/json
+
+{
+  "type": "",
+  "properties": {
+    "text": ""
+  }
+}
+
+
+### 128. 选择会话
+POST {{base}}/tui/select-session
+Accept: application/json
+Content-Type: application/json
+
+{
+  "sessionID": ""
+}
+
+
+### 129. 显示 TUI 提示
+POST {{base}}/tui/show-toast
+Accept: application/json
+Content-Type: application/json
+
+{
+  "message": "",
+  "variant": ""
+}
+
+
+### 130. 提交 TUI 提示词
+POST {{base}}/tui/submit-prompt
+Accept: application/json
+
+
+############################################################
+## /api/*（v2 镜像路由，与主路由等价）
+############################################################
+
+### 131. 列出所有 agent
+GET {{base}}/api/agent
+Accept: application/json
+
+
+### 132. 列出命令
+GET {{base}}/api/command
+Accept: application/json
+
+
+### 133. 移除凭证
+DELETE {{base}}/api/credential/{{credId}}
+Accept: application/json
+
+
+### 134. 更新凭证
+PATCH {{base}}/api/credential/{{credId}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "label": ""
+}
+
+
+### 135. 订阅全局事件流(SSE)
+GET {{base}}/api/event
+Accept: application/json
+
+
+### 136. 按名查找文件
+GET {{base}}/api/fs/find
+Accept: application/json
+
+
+### 137. 列出目录
+GET {{base}}/api/fs/list
+Accept: application/json
+
+
+### 138. 读取文件内容
+GET {{base}}/api/fs/read/*
+Accept: application/json
+
+
+### 139. 检查服务健康
+GET {{base}}/api/health
+Accept: application/json
+
+
+### 140. 列出集成
+GET {{base}}/api/integration
+Accept: application/json
+
+
+### 141. 获取集成
+GET {{base}}/api/integration/{{integrationId}}
+Accept: application/json
+
+
+### 142. 用密钥连接集成
+POST {{base}}/api/integration/{{integrationId}}/connect/key
+Accept: application/json
+Content-Type: application/json
+
+{
+  "key": ""
+}
+
+
+### 143. 发起 OAuth 连接
+POST {{base}}/api/integration/{{integrationId}}/connect/oauth
+Accept: application/json
+Content-Type: application/json
+
+{
+  "methodID": "",
+  "inputs": {}
+}
+
+
+### 144. 取消 OAuth 连接
+DELETE {{base}}/api/integration/attempt/{{attemptId}}
+Accept: application/json
+
+
+### 145. 获取 OAuth 尝试状态
+GET {{base}}/api/integration/attempt/{{attemptId}}
+Accept: application/json
+
+
+### 146. 完成 OAuth 连接
+POST {{base}}/api/integration/attempt/{{attemptId}}/complete
+Accept: application/json
+Content-Type: application/json
+
+{
+  "code": ""
+}
+
+
+### 147. 获取位置
+GET {{base}}/api/location
+Accept: application/json
+
+
+### 148. 列出模型
+GET {{base}}/api/model
+Accept: application/json
+
+
+### 149. 列出待处理权限请求
+GET {{base}}/api/permission/request
+Accept: application/json
+
+
+### 150. 列出已保存权限
+GET {{base}}/api/permission/saved
+Accept: application/json
+
+
+### 151. 移除已保存权限
+DELETE {{base}}/api/permission/saved/{{id}}
+Accept: application/json
+
+
+### 152. 列出 provider
+GET {{base}}/api/provider
+Accept: application/json
+
+
+### 153. 获取 provider
+GET {{base}}/api/provider/{{provider}}
+Accept: application/json
+
+
+### 154. 列出 PTY 会话
+GET {{base}}/api/pty
+Accept: application/json
+
+
+### 155. 创建 PTY 终端会话
+POST {{base}}/api/pty
+Accept: application/json
+Content-Type: application/json
+
+{
+  "command": "",
+  "args": [
+    ""
+  ],
+  "cwd": "",
+  "title": "",
+  "env": {}
+}
+
+
+### 156. 移除 PTY 会话
+DELETE {{base}}/api/pty/{{ptyId}}
+Accept: application/json
+
+
+### 157. 获取 PTY 会话
+GET {{base}}/api/pty/{{ptyId}}
+Accept: application/json
+
+
+### 158. 更新 PTY 会话
+PUT {{base}}/api/pty/{{ptyId}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "",
+  "size": {
+    "rows": 0,
+    "cols": 0
+  }
+}
+
+
+### 159. 连接 PTY 会话(WebSocket)
+GET {{base}}/api/pty/{{ptyId}}/connect
+Accept: application/json
+
+
+### 160. 创建 PTY WebSocket 令牌
+POST {{base}}/api/pty/{{ptyId}}/connect-token
+Accept: application/json
+
+
+### 161. 列出待处理提问请求
+GET {{base}}/api/question/request
+Accept: application/json
+
+
+### 162. 列出引用
+GET {{base}}/api/reference
+Accept: application/json
+
+
+### 163. 列出会话
+GET {{base}}/api/session
+Accept: application/json
+
+
+### 164. 创建会话
+POST {{base}}/api/session
+Accept: application/json
+Content-Type: application/json
+
+{
+  "id": "",
+  "agent": "",
+  "model": {
+    "id": "",
+    "providerID": ""
+  },
+  "location": {
+    "directory": ""
+  }
+}
+
+
+### 165. 获取会话详情
+GET {{base}}/api/session/{{sid}}
+Accept: application/json
+
+
+### 166. 切换会话 agent
+POST {{base}}/api/session/{{sid}}/agent
+Accept: application/json
+Content-Type: application/json
+
+{
+  "agent": ""
+}
+
+
+### 167. 压缩会话上下文
+POST {{base}}/api/session/{{sid}}/compact
+Accept: application/json
+
+
+### 168. 获取会话上下文
+GET {{base}}/api/session/{{sid}}/context
+Accept: application/json
+
+
+### 169. 订阅会话事件流(SSE)
+GET {{base}}/api/session/{{sid}}/event
+Accept: application/json
+
+
+### 170. 获取会话历史
+GET {{base}}/api/session/{{sid}}/history
+Accept: application/json
+
+
+### 171. 打断会话执行
+POST {{base}}/api/session/{{sid}}/interrupt
+Accept: application/json
+
+
+### 172. 获取会话消息列表
+GET {{base}}/api/session/{{sid}}/message
+Accept: application/json
+
+
+### 173. 获取会话消息
+GET {{base}}/api/session/{{sid}}/message/{{msgId}}
+Accept: application/json
+
+
+### 174. 切换会话模型
+POST {{base}}/api/session/{{sid}}/model
+Accept: application/json
+Content-Type: application/json
+
+{
+  "model": {
+    "id": "",
+    "providerID": ""
+  }
+}
+
+
+### 175. 列出会话权限请求
+GET {{base}}/api/session/{{sid}}/permission
+Accept: application/json
+
+
+### 176. 创建权限请求
+POST {{base}}/api/session/{{sid}}/permission
+Accept: application/json
+Content-Type: application/json
+
+{
+  "action": "",
+  "resources": [
+    ""
+  ]
+}
+
+
+### 177. 获取权限请求
+GET {{base}}/api/session/{{sid}}/permission/{{reqId}}
+Accept: application/json
+
+
+### 178. 回复待处理权限请求
+POST {{base}}/api/session/{{sid}}/permission/{{reqId}}/reply
+Accept: application/json
+Content-Type: application/json
+
+{
+  "reply": ""
+}
+
+
+### 179. 发送消息(同步等待响应)
+POST {{base}}/api/session/{{sid}}/prompt
+Accept: application/json
+Content-Type: application/json
+
+{
+  "prompt": {
+    "text": ""
+  }
+}
+
+
+### 180. 列出会话提问请求
+GET {{base}}/api/session/{{sid}}/question
+Accept: application/json
+
+
+### 181. 拒绝待处理提问
+POST {{base}}/api/session/{{sid}}/question/{{reqId}}/reject
+Accept: application/json
+
+
+### 182. 回复待处理提问
+POST {{base}}/api/session/{{sid}}/question/{{reqId}}/reply
+Accept: application/json
+Content-Type: application/json
+
+{
+  "answers": []
+}
+
+
+### 183. 清除暂存的回退
+POST {{base}}/api/session/{{sid}}/revert/clear
+Accept: application/json
+
+
+### 184. 提交暂存的回退
+POST {{base}}/api/session/{{sid}}/revert/commit
+Accept: application/json
+
+
+### 185. 暂存会话回退
+POST {{base}}/api/session/{{sid}}/revert/stage
+Accept: application/json
+Content-Type: application/json
+
+{
+  "messageID": ""
+}
+
+
+### 186. 等待会话完成
+POST {{base}}/api/session/{{sid}}/wait
+Accept: application/json
+
+
+### 187. 列出活跃会话
+GET {{base}}/api/session/active
+Accept: application/json
+
+
+### 188. 列出所有 skill
+GET {{base}}/api/skill
+Accept: application/json
+

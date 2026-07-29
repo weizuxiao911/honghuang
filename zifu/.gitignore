@@ -1,0 +1,16 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+out/
+*.vsix
+
+# 运行时临时产物（按需启用，本模块通常无）
+.cache/
+
+# 编辑器/系统
+.DS_Store
+.idea/
+.vscode/
+*.log

@@ -1,0 +1,23 @@
+# 依赖
+node_modules/
+
+# Docker 构建上下文产物
+build/
+dist/
+
+# 运行时数据（PVC 挂载点，运行时产生，不入库）
+workspace/
+data/
+config/
+
+# IDE
+.idea/
+.vscode/
+
+# 运行时临时产物
+.cache/
+logs/
+*.log
+
+# 编辑器/系统
+.DS_Store

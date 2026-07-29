@@ -1,0 +1,24 @@
+# 依赖
+node_modules/
+
+# Java 构建产物（待定构建工具时按需启用）
+target/
+build/
+*.jar
+*.war
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+.settings/
+
+# 运行时临时产物
+.cache/
+logs/
+*.log
+
+# 编辑器/系统
+.DS_Store

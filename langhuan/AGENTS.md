@@ -1,0 +1,39 @@
+# langhuan（琅嬛）AI 协作规则
+
+> 本目录的 AI 工作约束。`README.md` 描述是什么；本文件约束怎么做。
+
+## 单一职责
+
+- 本模块只负责**前端 VSIX 资产存储与分发**：元数据、版本、灰度、上下架、CDN。
+- 不解析 A2UI、不执行 Agent 任务、不参与 K8s 调度。
+
+## 技术栈
+
+- Spring Boot（应用框架）
+- MySQL（插件元数据持久化）
+- Redis（缓存、灰度路由、版本索引）
+- 对象存储 OSS（原始 VSIX 包存档）
+- CDN（高速下载分发）
+- VSIX 包解析引擎（自研或基于开源扩展）
+- RBAC 权限校验组件
+
+## 与其它模块的契约
+
+- **只对接 zifu**：zifu 启动时按用户/租户拉取可用插件清单。
+- **鉴权 Header 透传**：依赖 taixu 网关统一注入的用户/租户身份 Header，**不**自行维护登录态。
+- **不**主动连接 dongfu；与运行时 Agent 实例零耦合。
+
+## 调研参考
+
+- [`../.poc/extension-registry/`](../.poc/extension-registry/) 实现了「扫描本地 vsix 目录 → 生成 metadata → HTTPS 分发 → opensumi-web 通过 `appConfig.extensionMetadata` 加载」完整链路。
+- 详细调研结论见 [`../docs/vsix扩展分发管理调研.md`](../docs/vsix扩展分发管理调研.md)。
+
+## 一致性义务
+
+任何对本目录的修改必须保持与以下文件不互相矛盾：
+
+- [`../设计文档.md`](../设计文档.md)（产品蓝图，本模块对应第二章）
+- [`../README.md`](../README.md)（项目总览）
+- [`../AGENTS.md`](../AGENTS.md)（项目治理）
+
+修订前先读这三份，修订后核对其余三份。
