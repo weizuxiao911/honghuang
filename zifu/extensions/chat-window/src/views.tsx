@@ -348,6 +348,10 @@ const ChatWindow = () => {
         parts: [{ type: 'text', text }],
       });
       setBusy(true);
+      // 通知 session-manager 更新标题（设计文档第四章: A2UI 协议 Agent 侧生成组件结构, 前端本地管控表单双向绑定）
+      window.dispatchEvent(new CustomEvent('zifu:message-sent', {
+        detail: { sessionID, messageText: text },
+      }));
     } catch (e: any) {
       setError(String(e?.message || e));
       setInput(text);

@@ -1,0 +1,100 @@
+# Redis 部署清单 - 供 taixu 网关使用
+# 命名空间: honghuang-infra
+# 用途: 运行时状态存储 (userId ⇄ runtimeId 双索引 + TTL 自动过期)
+# 设计文档第三章: Redis 双索引存储运行时状态, 支持 userId、runtimeId 双向检索, 自带 TTL 过期机制
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: honghuang-infra
+  labels:
+    app: taixu
+    module: honghuang
+
+---
+# Redis PVC (本地验证用 hostpath, 生产环境用 NAS PVC)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: honghuang-infra
+  labels:
+    app: redis
+    module: honghuang
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hostpath
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: honghuang-infra
+  labels:
+    app: redis
+    module: honghuang
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "100m"
+              memory: 128Mi
+            limits:
+              cpu: "500m"
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          # AOF 持久化 (设计文档第三章: 自带 TTL 过期机制, 数据持久化到 PVC)
+          args:
+            - --appendonly
+            - "yes"
+            - --appendfsync
+            - "everysec"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-data
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: honghuang-infra
+  labels:
+    app: redis
+    module: honghuang
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+  selector:
+    app: redis

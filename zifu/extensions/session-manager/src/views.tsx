@@ -162,6 +162,15 @@ const SessionManager = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const updateSessionTitle = useCallback(async (id: string, title: string) => {
+    const res = await fetch(`${OPENCODE_BASE_URL}/session/${id}`, {
+      method: 'PATCH',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) throw new Error(`PATCH /session/${id} ${res.status}`);
+  }, []);
+
   const refresh = useCallback(async (silent = false) => {
     if (!silent) {
       setLoading(true);
@@ -178,6 +187,23 @@ const SessionManager = () => {
       if (!silent) setLoading(false);
     }
   }, []);
+
+  // 监听 chat-window 消息发送事件, 自动更新会话标题 (设计文档第四章: A2UI 协议前端本地管控表单双向绑定)
+  useEffect(() => {
+    const handler = async (e: any) => {
+      const { sessionID, messageText } = e.detail || {};
+      if (!sessionID || !messageText) return;
+      const newTitle = messageText.slice(0, 20);
+      try {
+        await updateSessionTitle(sessionID, newTitle);
+        await refresh(true);
+      } catch (err: any) {
+        console.error('[zifu-session-manager] 更新标题失败', err);
+      }
+    };
+    window.addEventListener('zifu:message-sent', handler as any);
+    return () => window.removeEventListener('zifu:message-sent', handler as any);
+  }, [updateSessionTitle, refresh]);
 
   const selectSession = useCallback((id: string) => {
     setActiveId(id);

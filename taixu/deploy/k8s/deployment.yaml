@@ -35,6 +35,33 @@ metadata:
     app.kubernetes.io/component: platform
 
 ---
+# 网关在自身命名空间 (honghuang-infra) 读自身 Pod (Spring Cloud Kubernetes 健康检查)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: taixu-self-reader
+  namespace: honghuang-infra
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: taixu-self-reader-binding
+  namespace: honghuang-infra
+subjects:
+  - kind: ServiceAccount
+    name: taixu
+    namespace: honghuang-infra
+roleRef:
+  kind: Role
+  name: taixu-self-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
 # 网关在 runtime 命名空间管理 Runtime Pod (创建/删除/查询)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -188,8 +215,8 @@ spec:
               containerPort: 8080
               protocol: TCP
           env:
-            - name: SPRING_CONFIG_LOCATION
-              value: /etc/taixu/config/
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: optional:file:/etc/taixu/config/application.yml
             - name: SPRING_PROFILES_ACTIVE
               value: prod
           volumeMounts:
