@@ -1,0 +1,5 @@
+/* 洪荒 定制样式：隐藏左右侧 tab panel 顶部大标题（洪荒 会话 / 对话），
+   保持简洁。OpenSumi 的 titlebar 是 CSS Module 生成的 hash 类名，用属性选择器匹配。 */
+[class*="titlebar___"] {
+  display: none !important;
+}

@@ -2,15 +2,10 @@
 node_modules/
 
 # 构建产物
-dist/
 out/
 *.vsix
 
 # 临时
 .cache/
 *.log
-
-# 编辑器/系统
 .DS_Store
-.idea/
-.vscode/

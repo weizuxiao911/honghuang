@@ -23,11 +23,6 @@
 - **鉴权 Header 透传**：依赖 taixu 网关统一注入的用户/租户身份 Header，**不**自行维护登录态。
 - **不**主动连接 dongfu；与运行时 Agent 实例零耦合。
 
-## 调研参考
-
-- [`../.poc/extension-registry/`](../.poc/extension-registry/) 实现了「扫描本地 vsix 目录 → 生成 metadata → HTTPS 分发 → opensumi-web 通过 `appConfig.extensionMetadata` 加载」完整链路。
-- 详细调研结论见 [`../docs/vsix扩展分发管理调研.md`](../docs/vsix扩展分发管理调研.md)。
-
 ## 一致性义务
 
 任何对本目录的修改必须保持与以下文件不互相矛盾：

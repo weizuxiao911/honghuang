@@ -1,11 +1,16 @@
 # 依赖
 node_modules/
 
-# Java 构建产物（待定构建工具时按需启用）
-target/
-build/
-*.jar
-*.war
+# 当前实现产物（Node.js/TS 阶段）
+dist/
+vsix/                 # vsix 投放目录，运行时产生，不入库
+certs/                # 自签证书，本地开发用
+
+# 未来按设计文档第二章迁移到 Spring Boot 后启用
+# target/
+# build/
+# *.jar
+# *.war
 
 # IDE
 .idea/
@@ -15,7 +20,7 @@ build/
 .classpath
 .settings/
 
-# 运行时临时产物
+# 临时
 .cache/
 logs/
 *.log

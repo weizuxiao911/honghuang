@@ -1,39 +1,85 @@
 # langhuan（琅嬛）
 
-> VSIX 插件资产分发中心。统一托管前端业务扩展包，为紫府提供插件拉取与版本管控。
+> VSIX 插件资产分发中心。统一托管前端业务扩展包，为紫府提供插件拉取、版本管控、灰度、CDN。
 
-详细职责、边界、技术栈见 [`../设计文档.md`](../设计文档.md) 第二章「langhuan（琅嬛）」。
+详细职责、边界、与其它模块接口见 [`../设计文档.md`](../设计文档.md) 第二章「langhuan（琅嬛）」。
 
 ## 当前状态
 
-**规划中**。本目录为四模块重构后新建的工程位，尚未包含源码。
+**已迁移 .poc/extension-registry 完整代码**。本目录是 langhuan 模块的正式工程位，包含：
 
-参考验证位于 [`../.poc/extension-registry/`](../.poc/extension-registry/)（前期调研产物，vsix 扫描 → metadata → HTTPS 分发 已端到端跑通）。
+- vsix 扫描与 metadata 生成（`src/build.ts`）
+- HTTPS 静态分发服务（`src/server.ts`）
 
-## 边界约束（摘自设计文档）
+> ⚠️ **与设计文档的差异**：设计文档第二章定位 langhuan 为 Spring Boot + MySQL + Redis + OSS + CDN 的生产级工程；当前实现为 Node.js + TypeScript 的 POC 验证版本，功能等价（扫描 → metadata → HTTPS 分发），但**生产化迁移到 Spring Boot 栈待后续推进**。
 
-- 仅负责**前端 VSIX 资源存储与分发**。
-- 不参与 Agent 任务执行、不参与 K8s 资源调度、不承载运行时业务逻辑。
-- 静态资源同步至 CDN，对外提供高速下载接口。
+## 目录结构
 
-## 核心能力（摘自设计文档）
+```
+langhuan/
+├── README.md
+├── AGENTS.md
+├── package.json                # honghuang-langhuan
+├── tsconfig.json
+├── .gitignore
+└── src/
+    ├── build.ts                # 扫描 vsix/ → 解压 → 生成 dist/metadata.json
+    └── server.ts               # HTTPS 静态分发（自签证书可选）
+```
 
-- 维护插件元数据、兼容范围、依赖关系；管理多版本迭代、灰度发布、上下架、版本回滚。
-- 基于用户/租户权限区分可用插件范围；完成插件完整性、安全性校验。
+## 启动方式
+
+```bash
+cd langhuan
+npm install
+
+# 1. 生成自签证书（首次，本地开发；kt-ext 协议强制 https）
+mkdir -p certs
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem \
+  -days 3650 -nodes -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+# 让浏览器信任（macOS，一次性）
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain certs/cert.pem
+
+# 2. 扫描 vsix 目录 + 生成 metadata
+npm run build
+
+# 3. 启动分发服务（https://localhost:9000）
+npm run serve
+```
+
+投放新扩展：把 `.vsix` 丢进 `vsix/`，重跑 `npm run build`（server 实时读 `dist/`，无需重启）。
 
 ## 与其它模块的接口
 
-- **下游消费者**：[zifu](../zifu/) 在容器启动时从本模块拉取插件清单与版本。
-- **插件来源**：[zifu](../zifu/) 域内的 VSIX 源码工程（开发者发布通道）以及第三方 VSIX。
-- **鉴权依赖**：用户/租户身份由 [taixu](../taixu/) 网关透传，本模块按用户/租户做可见性裁剪。
+- **下游消费者**：[`../zifu/`](../zifu/) 容器启动时按用户/租户拉取可用插件清单。
+- **鉴权依赖**：用户/租户身份由 [`../taixu/`](../taixu/) 网关统一注入 Header，本模块按 RBAC 做可见性裁剪。
+- **不**主动连接 [`../dongfu/`](../dongfu/)；与运行时 Agent 实例零耦合。
 
-## 工程位
+## 边界约束
 
-本目录将由独立的 Git 仓库或独立子工程承载，预计包含：
+- 仅负责**前端 VSIX 资源存储与分发**。
+- 不解析 A2UI、不执行 Agent 任务、不参与 K8s 调度。
+- 不维护登录态；鉴权透传自 taixu。
 
-- Spring Boot 应用入口
-- VSIX 包解析引擎
-- MySQL（插件元数据）/ Redis（缓存、版本灰度）/ 对象存储 OSS（原始包）/ CDN（静态分发）接入
-- RBAC 权限校验组件
+## 已知坑点（沿用 .poc 调研结论）
 
-具体技术细节待补充。详细规范以 [`../设计文档.md`](../设计文档.md) 与本模块 `AGENTS.md` 为准。
+| 现象 | 根因 | 解法 |
+|------|------|------|
+| 扩展资源请求打到阿里云 CDN 404 | metadata `mode:'public'` | 改 `mode:'local'` 且带 `uri` |
+| browserMain/views.js 不加载、面板不出现 | 运行时读 `contributes.browserMain`，未合并 sumiContributes | build 时 `mergeContributes` |
+| `Cannot destructure 'useState' of React` | 宿主注入的全局是大写 `React`，扩展 `require('react')` 拿不到 | 扩展 `require('React')`，esbuild external `React` |
+| `net::ERR_SSL_PROTOCOL_ERROR` | kt-ext 强制 https，本地自签 | 生成自签证书 + 钥匙串信任 |
+
+## 后续演进
+
+按 [`../设计文档.md`](../设计文档.md) 第二章规划，逐步迁移到生产级架构：
+
+- 应用框架：Node.js/TS → Spring Boot
+- 元数据存储：本地 JSON → MySQL
+- 缓存/灰度：内存 → Redis
+- 原始包存档：本地 vsix/ → 对象存储 OSS
+- 静态分发：HTTPS Node server → CDN
+- RBAC：基础裁剪 → 完整 RBAC 组件
+
+迁移前需先与 [taixu](../taixu/) 网关打通鉴权 Header 透传链路。

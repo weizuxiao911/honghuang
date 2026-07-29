@@ -1,0 +1,20 @@
+{
+  "name": "honghuang-langhuan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "洪荒琅嬛 vsix 统一管理与分发：扫描 vsix/ 目录，生成 metadata，HTTP 分发给 zifu 运行时集成",
+  "scripts": {
+    "build": "node --experimental-strip-types src/build.ts",
+    "serve": "node --experimental-strip-types src/server.ts",
+    "start": "node --experimental-strip-types src/build.ts && node --experimental-strip-types src/server.ts"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.12"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.5",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.4"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "zifu-chat-window",
+  "displayName": "洪荒对话窗口",
+  "description": "洪荒紫府右侧对话窗口：按会话隔离，直连 opencode SDK，SSE 实时更新",
+  "version": "0.1.0",
+  "publisher": "honghuang",
+  "engines": {
+    "vscode": "^1.60.0",
+    "kaitian": "*",
+    "opensumi": "*"
+  },
+  "activationEvents": ["*"],
+  "browser": "./out/extension.js",
+  "contributes": {},
+  "sumiContributes": {
+    "workerMain": "./out/extension.js",
+    "browserMain": "./out/views.js",
+    "browserViews": {
+      "right": {
+        "type": "add",
+        "view": [
+          {
+            "id": "zifu.chatWindow",
+            "icon": "comment-discussion",
+            "title": "洪荒对话"
+          }
+        ]
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "package": "node scripts/build.js && vsce package --no-dependencies --allow-missing-repository --allow-star-activation"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "1.18.8"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.5.4"
+  }
+}

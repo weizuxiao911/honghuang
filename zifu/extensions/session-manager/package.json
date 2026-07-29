@@ -1,0 +1,56 @@
+{
+  "name": "zifu-session-manager",
+  "displayName": "洪荒会话管理",
+  "description": "洪荒紫府左侧会话管理面板：列出 / 新建 / 切换 opencode 会话",
+  "version": "0.1.0",
+  "publisher": "honghuang",
+  "engines": {
+    "vscode": "^1.60.0",
+    "kaitian": "*",
+    "opensumi": "*"
+  },
+  "activationEvents": [
+    "*"
+  ],
+  "browser": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "zifu.session.refresh",
+        "title": "刷新会话列表",
+        "category": "洪荒"
+      },
+      {
+        "command": "zifu.session.create",
+        "title": "新建会话",
+        "category": "洪荒"
+      }
+    ]
+  },
+  "sumiContributes": {
+    "workerMain": "./out/extension.js",
+    "browserMain": "./out/views.js",
+    "browserViews": {
+      "left": {
+        "type": "add",
+        "view": [
+          {
+            "id": "zifu.sessionManager",
+            "icon": "comment",
+            "title": "洪荒会话"
+          }
+        ]
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "package": "node scripts/build.js && vsce package --no-dependencies --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.5.4"
+  }
+}

@@ -20,11 +20,6 @@
 - 插件与插件、插件与容器之间只通过**全局 command 命令 ID**联动。
 - 与 dongfu 的所有数据通道**必须**经 taixu 网关，不允许直连。
 
-## 调研参考
-
-- [`../.poc/opensumi-web/`](../.poc/opensumi-web/) 是 OpenSumi/CodeBlitz 容器的本地验证实例，已跑通 DynamicRequest 文件读取、PTY 写回、自研 vsix 加载。
-- 详细调研结论见 [`../docs/opensumi-opencode前后端分离调研.md`](../docs/opensumi-opencode前后端分离调研.md) 与 [`../docs/vsix扩展开发标准调研.md`](../docs/vsix扩展开发标准调研.md)。
-
 ## 一致性义务
 
 任何对本目录的修改必须保持与以下文件不互相矛盾：
