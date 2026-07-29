@@ -1,7 +1,7 @@
 const React = require('React');
 const { useState, useEffect, useCallback, useMemo } = React;
 
-const OPENCODE_BASE_URL = 'http://127.0.0.1:24096';
+const OPENCODE_BASE_URL = 'http://df-dev.localhost';
 const ACTIVE_SESSION_KEY = 'zifu.activeSessionId';
 const POLL_INTERVAL = 15000;
 

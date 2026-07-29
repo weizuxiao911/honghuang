@@ -4,7 +4,7 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client';
 import type { Event } from '@opencode-ai/sdk/v2/types';
 
-const OPENCODE_BASE_URL = 'http://127.0.0.1:24096';
+const OPENCODE_BASE_URL = 'http://df-dev.localhost';
 const ACTIVE_SESSION_KEY = 'zifu.activeSessionId';
 
 const client = createOpencodeClient({
