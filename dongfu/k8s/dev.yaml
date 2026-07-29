@@ -1,0 +1,113 @@
+# dongfu（洞府）本地 K8s 开发部署
+#
+# 唯一事实源: ../设计文档.md 第四章「dongfu（洞府）」 + ../../设计文档.md
+# 本清单按设计文档第四章契约的最小本地验证:
+#   - /workspace         持久化(PVC,5Gi hostpath)
+#   - /root/.config      运行时(emptyDir,重启可丢;生产由 taixu 注入)
+#   - /root/.local       运行时(emptyDir,重启可丢;生产由 taixu 挂独立 PVC)
+#
+# 本地访问: NodePort 30496 -> 容器 4096
+# 一次性应用: kubectl apply -f dongfu/k8s/dev.yaml
+# 健康检查: curl -H 'Accept:application/json' http://127.0.0.1:30496/global/health
+#
+# 不注入 OPENCODE_CONFIG,避免 opencode schema 兼容性问题;业务配置由 taixu 在生产环境注入。
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: honghuang-dongfu
+  labels:
+    app: dongfu
+    module: honghuang
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dongfu-workspace
+  namespace: honghuang-dongfu
+  labels:
+    app: dongfu
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hostpath
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dongfu-dev
+  namespace: honghuang-dongfu
+  labels:
+    app: dongfu
+    module: honghuang
+    runtimeId: rt-dev
+    tenantId: dev
+    userId: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dongfu
+      runtimeId: rt-dev
+  template:
+    metadata:
+      labels:
+        app: dongfu
+        module: honghuang
+        runtimeId: rt-dev
+        tenantId: dev
+        userId: dev
+    spec:
+      containers:
+        - name: dongfu
+          image: honghuang/dongfu:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4096
+              name: agent
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: config
+              mountPath: /root/.config/opencode
+            - name: data
+              mountPath: /root/.local/share/opencode
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: dongfu-workspace
+        - name: config
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dongfu-dev
+  namespace: honghuang-dongfu
+  labels:
+    app: dongfu
+spec:
+  type: NodePort
+  selector:
+    app: dongfu
+    runtimeId: rt-dev
+  ports:
+    - port: 4096
+      targetPort: 4096
+      nodePort: 30496
+      protocol: TCP
+      name: agent
