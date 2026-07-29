@@ -1,0 +1,310 @@
+# =============================================================================
+# taixu（太虚）K8s 部署清单 - 流量网关 + K8s 编排中枢
+# 命名空间: honghuang-infra (网关) + honghuang-runtime (运行时)
+# 部署模式: Deployment 多副本, 平台共享
+# 职责: 统一路由入口 + 动态创建/销毁用户 Runtime Pod
+# 网络流向: Ingress -> Service -> Pod
+# =============================================================================
+
+---
+# 网关所在命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: honghuang-infra
+  labels:
+    app: taixu
+    module: honghuang
+---
+# 运行时命名空间 (用户独立 Pod 所在)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: honghuang-runtime
+  labels:
+    app: taixu
+    module: honghuang
+---
+# 网关 ServiceAccount (在 infra 命名空间)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: taixu
+  namespace: honghuang-infra
+  labels:
+    app.kubernetes.io/component: platform
+
+---
+# 网关在 runtime 命名空间管理 Runtime Pod (创建/删除/查询)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: taixu-runtime-manager
+  namespace: honghuang-runtime
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: taixu-runtime-manager-binding
+  namespace: honghuang-runtime
+subjects:
+  - kind: ServiceAccount
+    name: taixu
+    namespace: honghuang-infra
+roleRef:
+  kind: Role
+  name: taixu-runtime-manager
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# 网关配置 (含 application.yml)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: taixu-config
+  namespace: honghuang-infra
+  labels:
+    app.kubernetes.io/component: platform
+data:
+  application.yml: |
+    server:
+      port: 8080
+    spring:
+      application:
+        name: taixu
+      cloud:
+        gateway:
+          httpclient:
+            websocket:
+              max-frame-payload-length: 10485760
+          routes:
+            - id: dynamic_routing
+              uri: no://op
+              predicates:
+                - Path=/**
+        kubernetes:
+          enabled: true
+          discovery:
+            enabled: false
+        data:
+          redis:
+            host: redis.honghuang-infra.svc.cluster.local
+            port: 6379
+            database: 0
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,metrics,prometheus
+      endpoint:
+        health:
+          show-details: always
+    taixu:
+      runtime:
+        image: dongfu:dev
+        ttl: 3600
+        agent:
+          port: 4096
+        workspace-pvc-claim-name: dongfu-workspace
+        workspace-pvc-sub-path-root: workspaces
+        workspace-mount-path: /workspace
+        home-mount-path: /root/.local/share/opencode
+        scheme: http
+        gateway-host: df-dev.localhost
+        agent-prefix: /agent/
+        wait-timeout-seconds: 120
+        poll-interval-ms: 2000
+        image-pull-policy: IfNotPresent
+        resources:
+          requests:
+            cpu: "100m"
+            memory: 128Mi
+          limits:
+            cpu: "500m"
+            memory: 1Gi
+      kubernetes:
+        cluster: default
+        namespace: honghuang-runtime
+        dns-suffix: svc.cluster.local
+      redis:
+        key-prefix: honghuang-runtime
+
+---
+# 网关 Deployment (2 副本, 平台共享)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taixu
+  namespace: honghuang-infra
+  labels:
+    app: taixu
+    app.kubernetes.io/component: platform
+    app.kubernetes.io/part-of: honghuang
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: taixu
+  template:
+    metadata:
+      labels:
+        app: taixu
+        app.kubernetes.io/component: platform
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      serviceAccountName: taixu
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: taixu
+          image: taixu:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SPRING_CONFIG_LOCATION
+              value: /etc/taixu/config/
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+          volumeMounts:
+            - name: config
+              mountPath: /etc/taixu/config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 512Mi
+            limits:
+              cpu: "2000m"
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 15"]
+      volumes:
+        - name: config
+          configMap:
+            name: taixu-config
+        - name: tmp
+          emptyDir: {}
+      terminationGracePeriodSeconds: 30
+
+---
+# 网关 Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: taixu
+  namespace: honghuang-infra
+  labels:
+    app: taixu
+    app.kubernetes.io/component: platform
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: taixu
+
+---
+# 网关 Ingress (taixu.localhost -> taixu Service -> Pod)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: taixu-ingress
+  namespace: honghuang-infra
+  labels:
+    app.kubernetes.io/component: platform
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: taixu.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: taixu
+                port:
+                  number: 80
+
+---
+# HPA: 平台共享层自动扩缩
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: taixu-hpa
+  namespace: honghuang-infra
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: taixu
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

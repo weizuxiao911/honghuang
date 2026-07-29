@@ -9,10 +9,11 @@
 
 ## 技术栈
 
-- Spring Cloud Gateway（网关）
-- WebFlux（响应式栈，支撑 SSE 长连接透传）
-- Fabric8 K8s 客户端（K8s 资源操作）
-- Redis（runtimeId ⇄ userId 双向索引、TTL 自动过期）
+- **Java 21** + **Spring Boot 3.2.5** + **Spring Cloud 2023.0.3**
+- **Spring Cloud Gateway**（反应式网关，支撑 SSE 长连接透传）
+- **Spring Cloud Kubernetes Fabric8**（K8s 资源操作）
+- **Spring Data Redis Reactive**（runtimeId ⇄ userId 双向索引、TTL 自动过期）
+- **Lombok**（简化代码）
 
 ## 与其它模块的契约
 
@@ -24,12 +25,11 @@
 
 - **双通道寻址**：同源靠 `x-runtime-id` Header；跨端靠子域名 Host。两条链路不得混用。
 - **TTL 与回收**：Redis 索引必须带 TTL；TTL 过期后必须自动触发 Pod 销毁与 PVC 清理巡检。
-- **SSE 透传**：必须使用响应式栈（WebFlux），禁止在网关内做阻塞式缓冲；流式响应必须端到端保持。
+- **SSE 透传**：必须使用反应式栈（WebFlux），禁止在网关内做阻塞式缓冲；流式响应必须端到端保持。
 - **安全**：不硬编码服务凭据；鉴权统一由网关完成；下游 Pod 启用 NetworkPolicy 限制出网。
-
-## 调研参考
-
-- 总体架构权衡见 [`../docs/架构设计.md`](../docs/架构设计.md)（注：原文以 AgentNest 为工作名，技术结论可复用）。
+- **反应式**：禁止 `Mono.block()`、`Thread.sleep()` 等阻塞 API。
+- **领域纯净**：`service/`、`model/` 层不得引入任何 Spring 依赖（按 DDD 分层）。
+- **SPI 设计**：扩展点必须定义在领域层（`repository/`、`service/` 接口），基础设施层实现。
 
 ## 一致性义务
 

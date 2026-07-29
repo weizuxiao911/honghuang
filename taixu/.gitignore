@@ -15,10 +15,6 @@ build/
 .classpath
 .settings/
 
-# K8s 资源模板本地副本（按需）
-k8s/local/
-*.kubeconfig
-
 # 运行时临时产物
 .cache/
 logs/
@@ -26,3 +22,13 @@ logs/
 
 # 编辑器/系统
 .DS_Store
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+HELP.md
+
+# 本地开发
+application-local.yml
+application-dev.yml

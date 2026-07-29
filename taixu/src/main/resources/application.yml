@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: taixu
+
+  cloud:
+    gateway:
+      httpclient:
+        websocket:
+          max-frame-payload-length: 10485760
+      routes:
+        # 兜底路由 - RuntimeRoutingFilter 通过 GATEWAY_REQUEST_URL_ATTR 覆盖目标 URI
+        - id: dynamic_routing
+          uri: no://op
+          predicates:
+            - Path=/**
+
+    kubernetes:
+      enabled: true
+      discovery:
+        enabled: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+taixu:
+  runtime:
+    image: dongfu:dev
+    ttl: 3600
+    agent:
+      port: 4096
+    workspace-pvc-claim-name: dongfu-workspace
+    workspace-pvc-sub-path-root: workspaces
+    workspace-mount-path: /workspace
+    home-mount-path: /root/.local/share/opencode
+    scheme: http
+    gateway-host: df-dev.localhost
+    agent-prefix: /agent/
+    wait-timeout-seconds: 120
+    poll-interval-ms: 2000
+    image-pull-policy: IfNotPresent
+    resources:
+      requests:
+        cpu: "100m"
+        memory: 128Mi
+      limits:
+        cpu: "500m"
+        memory: 1Gi
+  kubernetes:
+    cluster: default
+    namespace: honghuang-runtime
+    dns-suffix: svc.cluster.local
+  redis:
+    key-prefix: honghuang-runtime
+
+logging:
+  level:
+    com.honghuang.taixu: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    io.fabric8.kubernetes: WARN
