@@ -36,6 +36,37 @@
 - `.poc/`、`.poc/README.md`：前期可运行验证。**只读参考**，不修改、不删除。
 - 调研结论由 AI 在会话中自行消化，不必写进正式工程文档。
 
+## K8s 本地测试规则（docker-desktop）
+
+适用于本仓库所有模块在 K8s 上的本地验证。
+
+### 端口与访问路径
+
+- docker-desktop K8s 上 ingress-nginx-controller 通过 NodePort 暴露（默认 31071/32107），**不**是直接 `localhost:80`/`443`。
+- 推荐路径：`kubectl port-forward -n ingress svc/ingress-nginx-controller 8080:80` + `Host: <your-host>` Header。
+- 备选路径（仅健康检查）：`kubectl port-forward -n <ns> svc/<svc-name> 8080:<svc-port>` 直接绕过 Ingress。
+- **不要**改 ingress-nginx-controller Service 的 NodePort（破坏其它应用端口约定）；端口冲突时改用 port-forward。
+
+### Host 约定
+
+- Ingress 资源必须显式声明 `host`（如 `df-dev.localhost`）。
+- docker-desktop 上 `*.localhost` 子域名会自动解析到 127.0.0.1，**不**需要修改 `/etc/hosts`。
+- curl 验证时必须带 `-H "Host: <host>"`，否则命中 ingress-nginx-controller 默认后端（实测可能被其它应用占用）。
+
+### Ingress 注解（按需）
+
+- SSE 长连接：`nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"`、`proxy-send-timeout: "3600"`。
+- 大报文：`nginx.ingress.kubernetes.io/proxy-body-size: "0"`（不限制，opencode `/doc` 478KB+）。
+
+### 验证顺序
+
+1. Pod Ready（`kubectl wait --for=condition=ready pod -l app=<x> -n <ns>`）。
+2. Service Endpoint 已绑定 Pod IP（`kubectl get ep -n <ns>`）。
+3. Ingress 资源已创建（`kubectl get ingress -n <ns>`）。
+4. kubectl port-forward ingress-nginx-controller 到本机端口（`kubectl port-forward -n ingress svc/ingress-nginx-controller 8080:80`）。
+5. curl 验证：`curl -H "Host: <host>" http://localhost:8080/<path>`。
+6. 业务功能（POST /session、PTY 写文件等）。
+
 ## 任务执行
 
 按根目录 [`../AGENTS.md`](../AGENTS.md) 的「核心决策规则」与「标准工作流程」执行。本项目的特殊约束已在「铁律」「四模块边界速查」「调研产物处理」中说明。
