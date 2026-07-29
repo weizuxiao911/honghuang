@@ -30,18 +30,18 @@
   "sumiContributes": {
     "workerMain": "./out/extension.js",
     "browserMain": "./out/views.js",
-    "browserViews": {
-      "left": {
-        "type": "add",
-        "view": [
-          {
-            "id": "zifu.sessionManager",
-            "icon": "comment",
-            "title": "洪荒会话"
-          }
-        ]
+"browserViews": {
+        "left": {
+          "type": "add",
+          "view": [
+            {
+              "id": "zifu.sessionManager",
+              "icon": "file-text",
+              "title": "洪荒会话"
+            }
+          ]
+        }
       }
-    }
   },
   "scripts": {
     "build": "node scripts/build.js",
