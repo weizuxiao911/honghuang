@@ -218,10 +218,55 @@ const SessionManager = () => {
     [refresh, activeId]
   );
 
+  // SSE 事件监听: taichu sidebar 模式, 收到 session.* 或 message.updated 事件时静默刷新
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+    let stream: AsyncGenerator<any> | null = null;
+
+    (async () => {
+      while (!cancelled) {
+        try {
+          const res = await fetch(`${OPENCODE_BASE_URL}/global/event`, {
+            headers: { accept: 'text/event-stream' },
+          });
+          if (!res.body) continue;
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done || cancelled) break;
+            buf += decoder.decode(value, { stream: true });
+            let idx;
+            while ((idx = buf.indexOf('\n\n')) !== -1) {
+              const raw = buf.slice(0, idx);
+              buf = buf.slice(idx + 2);
+              let dataStr = '';
+              for (const line of raw.split('\n')) {
+                if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+              }
+              if (!dataStr) continue;
+              let parsed: any = {};
+              try { parsed = JSON.parse(dataStr); } catch {}
+              const inner: any = parsed?.payload || parsed;
+              const realType = inner?.type || '';
+              if (realType.startsWith('session.') || realType === 'message.updated') {
+                refresh(true);  // 静默刷新（taichu scheduleRefresh 模式）
+              }
+            }
+          }
+        } catch (e: any) {
+          if (!cancelled) await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+    })();
+
+    // 定时轮询兜底
     const timer = setInterval(() => refresh(true), POLL_INTERVAL);
-    return () => clearInterval(timer);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [refresh]);
 
   useEffect(() => {
@@ -263,7 +308,7 @@ const SessionManager = () => {
         title: `${s.title || s.slug || s.id} · ${relativeTime(s.time?.updated)}`,
       },
       React.createElement('span', { className: 'an-sm__item-icon' }, React.createElement(ChatIcon, null)),
-      React.createElement('span', { className: 'an-sm__item-title' }, s.title || s.slug || '新对话'),
+      React.createElement('span', { className: 'an-sm__item-title' }, (s.title && !s.title.startsWith('New session') && s.title !== '新对话' ? s.title : s.slug || s.title) || '新对话'),
       React.createElement('span', { className: 'an-sm__item-time' }, relativeTime(s.time?.updated)),
       React.createElement(
         'span',
