@@ -6,43 +6,36 @@
 
 ## 当前状态
 
-**规划中**。本目录为四模块重构后新建的工程位，尚未包含源码。
+**最小骨架已就位**。本目录已包含：
 
-参考验证位于 [`../.poc/opencode-docker/`](../.poc/opencode-docker/)（前期调研产物，opencode Docker 化已跑通：188 API 全通，扩展可注入，长任务不 OOM）。
+- 标准化 Docker 镜像契约（[`Dockerfile`](./Dockerfile)）
+- 默认运行时配置（[`opencode.json`](./opencode.json)，业务 Agent 由 taixu 注入）
+- 容器启动入口（[`start.sh`](./start.sh)，本地/CI 验证用）
+- 镜像构建排除规则（[`.dockerignore`](./.dockerignore)）
+- 协议契约文档（[`docs/A2UI契约.md`](./docs/A2UI契约.md)、[`docs/MCP契约.md`](./docs/MCP契约.md)）
 
-## 核心资产（摘自设计文档）
+**未包含**：业务 Agent、模型凭据、生产部署脚本。生产部署由 [`../taixu/`](../taixu/) 通过 K8s 编排完成。
 
-- 标准化 Docker 镜像
-- 容器挂载契约（NAS PVC 双 subPath 挂载：用户项目工作区 + 全局配置）
-- OpenCode 运行时
-- 后端 Plugin 加载框架
+## 本地验证
 
-## 边界约束（摘自设计文档）
+```bash
+cd dongfu
+bash start.sh
+# 容器 dongfu-dev 启动，宿主端口 14096 → 容器 4096
+curl -s -H Accept:application/json http://127.0.0.1:14096/global/health
+```
 
-- 业务执行逻辑**全部**在此承载。
-- Pod 销毁后持久数据保留，重启可快速恢复。
-- 镜像与业务能力**完全解耦**：业务 Agent 通过 `opencode.json` 动态拉取插件，无需重新构建基础镜像。
+启动脚本会自动创建 `workspace/` `data/` `config/` 三个运行时挂载点（已在 `.gitignore` 排除，不入库）。
+
+## 边界约束
+
+- **镜像与业务完全解耦**：本镜像不预装任何业务 Agent；业务由 taixu 通过 `opencode.json` / `config` 挂载注入。
+- **持久化边界**：所有用户私有数据（工作区、配置、会话、凭证）必须落到 PVC 挂载点；Pod 销毁后保留。
+- **不渲染 UI**：A2UI 流式组件结构由 opencode 输出；最终 UI 渲染由 [`../zifu/`](../zifu/) 完成。
+- **鉴权透传**：用户身份由环境变量注入；**不**硬编码 API Key。
 
 ## 与其它模块的接口
 
-- **上游调度**：[taixu](../taixu/) 创建并管理本模块 Pod 生命周期。
+- **上游调度**：[`../taixu/`](../taixu/) 通过 K8s API 创建并管理本模块 Pod 生命周期。
 - **配置注入**：taixu 按需向本模块写入 `opencode.json` / VSIX 名单 / 用户身份环境变量。
-- **业务回流**：本模块遵循 A2UI 协议生成流式 UI 数据，经 taixu 网关 SSE 推回 [zifu](../zifu/) 对话插件渲染。
-
-## 后端运行规范（摘自设计文档）
-
-- A2UI 协议：声明式流式 UI 标准，Agent 侧生成组件结构，前端本地管控表单双向绑定。
-- Skill / Agent / MCP 三层能力拆分，业务插件通过独立 Git 地址动态加载。
-- 底层运行镜像与业务能力完全解耦，镜像升级不会覆盖用户持久化配置。
-
-## 工程位
-
-本目录将由独立的 Git 仓库或独立子工程承载，预计包含：
-
-- Dockerfile（标准化基础镜像）
-- `opencode.json` / VSIX 名单加载逻辑
-- MCP 协议适配层
-- A2UI 流式输出端点
-- 容器挂载契约定义
-
-具体技术细节待补充。详细规范以 [`../设计文档.md`](../设计文档.md) 与本模块 `AGENTS.md` 为准。
+- **业务回流**：遵循 A2UI 协议生成流式 UI 数据，经 taixu 网关 SSE 推回 [`../zifu/`](../zifu/) 对话插件渲染。
