@@ -1,0 +1,162 @@
+### dongfu（洞府）K8s 部署验收测试
+###
+### 唯一事实源: ../设计文档.md 第四章「dongfu（洞府）」
+###
+### 用法：VS Code REST Client（humao.rest-client）逐条 Send Request
+### 前置条件：
+###   1. docker-desktop K8s 已启动
+###   2. kubectl apply -f dongfu/k8s/dev.yaml
+###   3. kubectl wait --for=condition=ready pod -l app=dongfu -n honghuang-dongfu
+###
+### 端口约定：NodePort 30496 -> 容器 4096
+###
+### 验收项：
+###   1. K8s 部署可达性（NodePort + 健康）
+###   2. OpenAPI 规范可拉
+###   3. 会话核心 API（列/建/查）
+###   4. 文件系统（PVC /workspace 挂载）
+###   5. PTY 写文件通道（验证 PVC 落盘）
+###   6. v2 API（生产推荐路由）
+
+@base = http://127.0.0.1:30496
+@sid =
+
+
+############################################################
+## 1. K8s 部署可达性
+############################################################
+
+### 1.1 外部访问 NodePort 30496 + 健康检查
+# @name 健康检查
+GET {{base}}/global/health
+Accept: application/json
+
+### 1.2 opencode 版本（来自 opencode.db 或构建参数）
+GET {{base}}/global/version
+Accept: application/json
+
+
+############################################################
+## 2. OpenAPI 规范
+############################################################
+
+### 2.1 拉取 OpenAPI 规范（运行实例的真实 spec，162 端点）
+GET {{base}}/doc
+Accept: application/json
+
+
+############################################################
+## 3. 会话核心 API（dongfu 主要能力）
+############################################################
+
+### 3.1 列出会话（初始应为空数组）
+GET {{base}}/session
+Accept: application/json
+
+### 3.2 创建会话
+# @name 创建会话
+POST {{base}}/session
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "dongfu 验收测试"
+}
+
+### 3.3 获取会话详情（手动把创建返回的 id 填到上方 @sid）
+GET {{base}}/session/{{sid}}
+Accept: application/json
+
+
+############################################################
+## 4. 文件系统（验证 PVC /workspace 挂载）
+############################################################
+
+### 4.1 列出 /workspace 下的文件
+GET {{base}}/file?path=/workspace
+Accept: application/json
+
+### 4.2 查看 /workspace 目录内容（v2 路由）
+GET {{base}}/api/fs/list?path=/workspace
+Accept: application/json
+
+
+############################################################
+## 5. PTY 写文件通道（验证 PVC 落盘）
+############################################################
+
+### 5.1 创建 PTY 会话并向 /workspace 写入验收文件
+# @name PTY 写文件
+POST {{base}}/pty
+Accept: application/json
+Content-Type: application/json
+
+{
+  "command": "/bin/bash",
+  "args": ["-c", "echo ACCEPTED_BY_DONGFU > /workspace/acceptance.txt && date >> /workspace/acceptance.txt && ls -la /workspace"],
+  "cwd": "/workspace"
+}
+
+### 5.2 验证落盘（应能看到 acceptance.txt）
+GET {{base}}/file?path=/workspace
+Accept: application/json
+
+### 5.3 读取验收文件内容
+GET {{base}}/file/content?path=/workspace/acceptance.txt
+Accept: application/json
+
+
+############################################################
+## 6. v2 API（生产推荐走 v2，详见 docs/opencode-事件流调研.md）
+############################################################
+
+### 6.1 /api/health（v2）
+GET {{base}}/api/health
+Accept: application/json
+
+### 6.2 列出会话（v2）
+GET {{base}}/api/session
+Accept: application/json
+
+### 6.3 创建会话（v2）
+# @name v2 创建会话
+POST {{base}}/api/session
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "dongfu 验收 v2"
+}
+
+
+############################################################
+## 7. 列出全部 agent（业务 Agent 由 taixu 注入，本镜像应仅含默认）
+############################################################
+
+### 7.1 列出 agent
+GET {{base}}/agent
+Accept: application/json
+
+### 7.2 列出 provider（应为空，未配置 OPENCODE_CONFIG）
+GET {{base}}/provider
+Accept: application/json
+
+
+############################################################
+## 验收完成
+############################################################
+
+### ✅ 验收清单
+# - [ ] 1.1 /global/health 返回 {healthy:true, version:1.18.x}
+# - [ ] 1.2 全局事件流正常
+# - [ ] 2.1 /doc 返回 OpenAPI JSON（200+ KB）
+# - [ ] 3.1 /session 返回 []
+# - [ ] 3.2 POST /session 创建成功，返回 id
+# - [ ] 3.3 GET /session/{id} 返回会话详情
+# - [ ] 4.1 /file?path=/workspace 返回文件列表
+# - [ ] 5.1 PTY 写入 /workspace/acceptance.txt 成功
+# - [ ] 5.2 落盘后再次列出能看到 acceptance.txt
+# - [ ] 5.3 读取 acceptance.txt 内容正确
+# - [ ] 6.1 /api/health 返回 healthy
+# - [ ] 6.2/6.3 v2 session API 工作
+# - [ ] 7.1/7.2 agent/provider 列表（验证镜像无业务 Agent 注入）
