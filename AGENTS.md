@@ -42,16 +42,16 @@
 
 ### 端口与访问路径
 
-- docker-desktop K8s 上 ingress-nginx-controller 通过 NodePort 暴露（默认 31071/32107），**不**是直接 `localhost:80`/`443`。
-- 推荐路径：`kubectl port-forward -n ingress svc/ingress-nginx-controller 8080:80` + `Host: <your-host>` Header。
-- 备选路径（仅健康检查）：`kubectl port-forward -n <ns> svc/<svc-name> 8080:<svc-port>` 直接绕过 Ingress。
-- **不要**改 ingress-nginx-controller Service 的 NodePort（破坏其它应用端口约定）；端口冲突时改用 port-forward。
+- docker-desktop K8s 是**单节点 cluster**，ingress-nginx-controller 通过 **LoadBalancer (EXTERNAL-IP=localhost)** 直接暴露到宿主机 `localhost:80`（HTTP）和 `localhost:443`（HTTPS）。
+- **不需要** kubectl port-forward，**不需要** NodePort 端口（31071/32107 实际不通）。
+- 推荐路径：直接 `curl -H "Host: <your-host>" http://localhost/<path>`。
+- 备选路径（仅健康检查，跳过 Ingress）：`kubectl port-forward -n <ns> svc/<svc-name> 8080:<svc-port>` 或 `kubectl exec`。
 
 ### Host 约定
 
 - Ingress 资源必须显式声明 `host`（如 `df-dev.localhost`）。
 - docker-desktop 上 `*.localhost` 子域名会自动解析到 127.0.0.1，**不**需要修改 `/etc/hosts`。
-- curl 验证时必须带 `-H "Host: <host>"`，否则命中 ingress-nginx-controller 默认后端（实测可能被其它应用占用）。
+- curl 验证时必须带 `-H "Host: <host>"`，否则命中 ingress-nginx-controller 默认后端（实测返回 404 或其它应用占位）。
 
 ### Ingress 注解（按需）
 
@@ -63,9 +63,8 @@
 1. Pod Ready（`kubectl wait --for=condition=ready pod -l app=<x> -n <ns>`）。
 2. Service Endpoint 已绑定 Pod IP（`kubectl get ep -n <ns>`）。
 3. Ingress 资源已创建（`kubectl get ingress -n <ns>`）。
-4. kubectl port-forward ingress-nginx-controller 到本机端口（`kubectl port-forward -n ingress svc/ingress-nginx-controller 8080:80`）。
-5. curl 验证：`curl -H "Host: <host>" http://localhost:8080/<path>`。
-6. 业务功能（POST /session、PTY 写文件等）。
+4. curl 验证：`curl -H "Host: <host>" http://localhost/<path>`。
+5. 业务功能（POST /session、PTY 写文件等）。
 
 ## 任务执行
 
