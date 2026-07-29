@@ -22,7 +22,7 @@ async function createSession(): Promise<Session> {
   const res = await fetch(`${OPENCODE_BASE_URL}/session`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: '新对话' }),
+    body: JSON.stringify({}), // 不设 title, 由 opencode 自动从对话生成
   });
   if (!res.ok) throw new Error(`POST /session ${res.status}`);
   return res.json();
@@ -308,7 +308,7 @@ const SessionManager = () => {
         title: `${s.title || s.slug || s.id} · ${relativeTime(s.time?.updated)}`,
       },
       React.createElement('span', { className: 'an-sm__item-icon' }, React.createElement(ChatIcon, null)),
-      React.createElement('span', { className: 'an-sm__item-title' }, (s.title && !s.title.startsWith('New session') && s.title !== '新对话' ? s.title : s.slug || s.title) || '新对话'),
+      React.createElement('span', { className: 'an-sm__item-title' }, s.title || s.slug || '对话'),
       React.createElement('span', { className: 'an-sm__item-time' }, relativeTime(s.time?.updated)),
       React.createElement(
         'span',
