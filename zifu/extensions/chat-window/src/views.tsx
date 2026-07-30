@@ -13,17 +13,19 @@ const client = createOpencodeClient({
 });
 
 const CSS = `
-.an-cw { display:flex; flex-direction:column; height:100%; font-size:var(--font-size,13px); color:var(--sideBar-foreground,var(--foreground)); background:var(--sideBar-background); }
-.an-cw__header { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--sideBar-border, transparent); background:var(--sideBar-background); flex-shrink:0; }
-.an-cw__title { font-size:13px; font-weight:600; color:var(--sideBar-foreground,var(--foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0; }
-.an-cw__title-icon { font-size:13px; opacity:.7; flex:0 0 auto; }
-.an-cw__header-btn { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:5px; cursor:pointer; user-select:none; color:var(--descriptionForeground); background:transparent; border:none; }
-.an-cw__header-btn:hover { background:var(--list-hoverBackground); color:var(--foreground); }
-.an-cw__header-btn:disabled { opacity:.4; cursor:not-allowed; }
-.an-cw__header-btn svg { width:14px; height:14px; }
-.an-cw__model { flex:0 0 auto; display:flex; align-items:center; gap:4px; padding:3px 8px; border-radius:5px; font-size:11px; color:var(--descriptionForeground); background:var(--input-background); border:1px solid var(--input-border, transparent); cursor:pointer; user-select:none; }
-.an-cw__model:hover { background:var(--list-hoverBackground); color:var(--foreground); }
-.an-cw__scroll { flex:1; min-height:0; overflow-y:auto; padding:20px 16px; display:flex; flex-direction:column; gap:18px; }
+.an-cw { display:flex; flex-direction:column; height:100%; font-size:14px; color:var(--sideBar-foreground,var(--foreground)); background:var(--sideBar-background); }
+.an-cw__top { display:flex; align-items:center; gap:8px; padding:8px 12px; flex-shrink:0; color:var(--descriptionForeground); font-size:12px; }
+.an-cw__top-label { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.an-cw__top-status { flex:0 0 auto; display:flex; align-items:center; gap:6px; color:var(--descriptionForeground); }
+.an-cw__top-dot { width:6px; height:6px; border-radius:50%; background:var(--descriptionForeground); }
+.an-cw__top-dot.is-live { background:var(--terminal-ansiGreen,#22c55e); }
+.an-cw__top-dot.is-busy { background:var(--terminal-ansiYellow,#eab308); animation:an-cw-pulse 1s infinite; }
+.an-cw__top-dot.is-error { background:var(--errorForeground,#f87171); }
+@keyframes an-cw-pulse { 0%,100% { opacity:.4 } 50% { opacity:1 } }
+.an-cw__intro { padding:16px 20px 8px; flex-shrink:0; }
+.an-cw__intro-title { font-size:18px; font-weight:600; margin-bottom:4px; }
+.an-cw__intro-desc { font-size:12px; color:var(--descriptionForeground); line-height:1.6; }
+.an-cw__scroll { flex:1; min-height:0; overflow-y:auto; padding:12px 20px; display:flex; flex-direction:column; gap:14px; }
 .an-cw__empty { margin:auto; padding:40px 20px; text-align:center; color:var(--descriptionForeground); line-height:1.7; user-select:none; font-size:14px; }
 .an-cw__msg { display:flex; flex-direction:column; gap:4px; }
 .an-cw__msg-role { font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--descriptionForeground); user-select:none; }
@@ -37,23 +39,21 @@ const CSS = `
 .an-cw__part-reason { font-size:12px; opacity:.7; font-style:italic; }
 .an-cw__cursor::after { content:'\\258C'; display:inline-block; animation:an-cw-blink 1s steps(2) infinite; margin-left:2px; opacity:.6; }
 @keyframes an-cw-blink { 50% { opacity:0; } }
-.an-cw__err { margin:0 12px 0 12px; padding:8px 10px; border-radius:6px; font-size:12px; color:var(--inputValidation-errorForeground,var(--errorForeground)); background:var(--inputValidation-errorBackground,transparent); border:1px solid var(--inputValidation-errorBorder,currentColor); }
-.an-cw__foot { border-top:1px solid var(--sideBar-border,transparent); padding:12px 16px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; background:var(--sideBar-background); }
-.an-cw__composer { display:flex; align-items:flex-end; gap:8px; padding:8px 10px; border-radius:10px; background:var(--input-background); border:1px solid var(--input-border,transparent); }
+.an-cw__err { margin:0 12px; padding:8px 10px; border-radius:6px; font-size:12px; color:var(--inputValidation-errorForeground,var(--errorForeground)); background:var(--inputValidation-errorBackground,transparent); border:1px solid var(--inputValidation-errorBorder,currentColor); }
+.an-cw__foot { border-top:1px solid var(--sideBar-border,transparent); padding:10px 12px 14px 12px; display:flex; flex-direction:column; gap:6px; flex-shrink:0; background:var(--sideBar-background); }
+.an-cw__composer { padding:8px 10px; border-radius:10px; background:var(--input-background); border:1px solid var(--input-border,transparent); }
 .an-cw__composer:focus-within { border-color:var(--focusBorder); }
-.an-cw__composer textarea { flex:1; min-height:24px; max-height:200px; resize:none; border:none; outline:none; background:transparent; color:var(--input-foreground,inherit); font:inherit; line-height:1.5; padding:2px 0; }
+.an-cw__composer textarea { display:block; width:100%; min-height:48px; max-height:240px; resize:none; border:none; outline:none; background:transparent; color:var(--input-foreground,inherit); font:inherit; line-height:1.55; padding:2px 0; }
 .an-cw__composer textarea::placeholder { color:var(--input-placeholderForeground); }
-.an-cw__send { flex:0 0 auto; padding:6px 14px; border-radius:7px; cursor:pointer; user-select:none; color:var(--button-foreground); background:var(--button-background); border:1px solid var(--button-border,transparent); font-weight:500; }
-.an-cw__send:hover:not(:disabled) { background:var(--button-hoverBackground); }
-.an-cw__send:disabled { opacity:.5; cursor:not-allowed; }
-.an-cw__hint { font-size:11px; color:var(--descriptionForeground); display:flex; align-items:center; gap:8px; }
-.an-cw__hint-status { display:inline-flex; align-items:center; gap:5px; }
-.an-cw__hint-status::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--descriptionForeground); }
-.an-cw__hint-status.is-live::before { background:var(--terminal-ansiGreen,#22c55e); }
-.an-cw__hint-status.is-busy::before { background:var(--terminal-ansiYellow,#eab308); }
-.an-cw__hint-status.is-error::before { background:var(--errorForeground,#f87171); }
-.an-cw__hint-spacer { flex:1; }
-.an-cw__abort { cursor:pointer; color:var(--textLink-foreground,var(--focusBorder)); }
+.an-cw__tools { display:flex; align-items:center; gap:10px; margin-top:6px; font-size:12px; color:var(--descriptionForeground); }
+.an-cw__tool { display:flex; align-items:center; gap:4px; padding:2px 6px; border-radius:5px; cursor:pointer; user-select:none; }
+.an-cw__tool:hover { background:var(--list-hoverBackground); color:var(--foreground); }
+.an-cw__tools-spacer { flex:1; }
+.an-cw__send { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none; color:#fff; background:var(--button-background, #2563eb); border:none; font-weight:600; font-size:14px; }
+.an-cw__send:hover:not(:disabled) { filter:brightness(1.1); }
+.an-cw__send:disabled { opacity:.4; cursor:not-allowed; }
+.an-cw__model { display:flex; align-items:center; gap:4px; padding:2px 6px; border-radius:5px; cursor:pointer; user-select:none; font-size:12px; }
+.an-cw__model:hover { background:var(--list-hoverBackground); }
 `;
 
 function useInjectStyle() {
@@ -65,32 +65,6 @@ function useInjectStyle() {
     document.head.appendChild(el);
   }, []);
 }
-
-const UploadIcon = () =>
-  React.createElement('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 },
-    React.createElement('path', { d: 'M8 2v9M4.5 5.5L8 2l3.5 3.5M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2', strokeLinecap: 'round', strokeLinejoin: 'round' })
-  );
-
-const QuestionIcon = () =>
-  React.createElement('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 },
-    React.createElement('circle', { cx: 8, cy: 8, r: 6 }),
-    React.createElement('path', { d: 'M6 6.5a2 2 0 014 0c0 1.2-1.2 1.6-2 2.3V9.5M8 11.5h.01', strokeLinecap: 'round' })
-  );
-
-const ModelIcon = () =>
-  React.createElement('svg', { viewBox: '0 0 16 16', fill: 'currentColor' },
-    React.createElement('path', { d: 'M3 4l5 4 5-4M3 8l5 4 5-4M3 12l5 4 5-4' })
-  );
-
-const NewChatIcon = () =>
-  React.createElement('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 },
-    React.createElement('path', { d: 'M2 3.5A1.5 1.5 0 013.5 2h9A1.5 1.5 0 0114 3.5v6A1.5 1.5 0 0112.5 11H6l-3 3v-3H3.5A1.5 1.5 0 012 9.5v-6z', strokeLinecap: 'round', strokeLinejoin: 'round' })
-  );
-
-const TitleIcon = () =>
-  React.createElement('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 },
-    React.createElement('path', { d: 'M2 4.5A1.5 1.5 0 013.5 3h9A1.5 1.5 0 0114 4.5v5A1.5 1.5 0 0112.5 11H6.5l-2.5 2.5V11H3.5A1.5 1.5 0 012 9.5v-5z', strokeLinejoin: 'round' })
-  );
 
 const ChatWindow = () => {
   useInjectStyle();
@@ -299,34 +273,28 @@ const ChatWindow = () => {
   const statusClass = 'an-cw__hint-status' + (error ? ' is-error' : busy ? ' is-busy' : live && sessionID ? ' is-live' : '');
 
   return React.createElement('div', { className: 'an-cw' },
-    // 头部: session title + 模型 + 工具栏
-    React.createElement('div', { className: 'an-cw__header' },
-      React.createElement('span', { className: 'an-cw__title-icon' }, React.createElement(TitleIcon, null)),
-      React.createElement('span', { className: 'an-cw__title' }, sessionTitle || (sessionID ? '对话中...' : '选择会话')),
-      React.createElement('span', { className: 'an-cw__model', title: '切换模型', onClick: () => {/* TODO: 模型选择器 */} },
-        React.createElement(ModelIcon, null),
-        React.createElement('span', null, model)
-      ),
-      React.createElement('button', { className: 'an-cw__header-btn', title: '上传文件', disabled: !sessionID },
-        React.createElement(UploadIcon, null)
-      ),
-      React.createElement('button', { className: 'an-cw__header-btn', title: '提问工具', disabled: !sessionID },
-        React.createElement(QuestionIcon, null)
-      ),
-      React.createElement('button', { className: 'an-cw__header-btn', title: '新对话', onClick: () => {
-        // 通知 session-manager 创建
-        window.dispatchEvent(new CustomEvent('zifu:create-session-request'));
-      } },
-        React.createElement(NewChatIcon, null)
+    // 顶部: session title (左) + 状态 (右)
+    React.createElement('div', { className: 'an-cw__top' },
+      React.createElement('span', { className: 'an-cw__top-label' },
+        sessionTitle || (sessionID ? '对话中' : '欢迎使用')),
+      React.createElement('span', { className: 'an-cw__top-status' },
+        React.createElement('span', { className: 'an-cw__top-dot ' + (error ? 'is-error' : busy ? 'is-busy' : live && sessionID ? 'is-live' : '') }),
+        statusText
       )
     ),
     error ? React.createElement('div', { className: 'an-cw__err' }, error) : null,
+    // 介绍区 (无 session 时显示 Agent 介绍)
+    !sessionID
+      ? React.createElement('div', { className: 'an-cw__intro' },
+          React.createElement('div', { className: 'an-cw__intro-title' }, 'Agent'),
+          React.createElement('div', { className: 'an-cw__intro-desc' }, '轻松应对复杂项目开发\n• 擅长项目迭代、问题修复与架构重构\n• 智能任务规划, 确认后精准推进执行\n• 自主编排智能体, AI 专家团队协同开发')
+        )
+      : null,
+    // 消息区
     React.createElement('div', { className: 'an-cw__scroll', ref: scrollRef },
-      !sessionID
-        ? React.createElement('div', { className: 'an-cw__empty' }, '请在左侧「洪荒会话」选择或新建对话')
-        : rows.length === 0
-          ? React.createElement('div', { className: 'an-cw__empty' }, '发送第一条消息开始对话')
-          : rows.map((r) => {
+      sessionID && rows.length === 0 && !busy
+        ? React.createElement('div', { className: 'an-cw__empty' }, '发送第一条消息开始对话')
+        : rows.map((r) => {
             const role = r.info.role;
             const errMsg = r.info.error?.data?.message || r.info.error?.message;
             const visibleParts = (r.parts || [])
@@ -344,31 +312,30 @@ const ChatWindow = () => {
             );
           })
     ),
+    // 底部: 输入框 + 工具栏 (Trae 风格)
     React.createElement('div', { className: 'an-cw__foot' },
-      // 状态行 (已连接, 模型等) - 始终显示
-      React.createElement('div', { className: 'an-cw__hint' },
-        React.createElement('span', { className: statusClass }, statusText),
-        React.createElement('span', { className: 'an-cw__hint-spacer' }),
-        busy ? React.createElement('span', { className: 'an-cw__abort', onClick: onAbort }, '中止') : null
-      ),
-      // 输入框 - 始终可见, 始终可输入 (无 session 时点击创建并发送)
       React.createElement('div', { className: 'an-cw__composer' },
         React.createElement('textarea', {
-          placeholder: sessionID ? '输入消息，Enter 发送，Shift+Enter 换行' : '输入消息自动新建会话并发送',
+          placeholder: '输入消息, Enter 发送, Shift+Enter 换行',
           value: input,
           disabled: sending,
           onChange: (e) => setInput(e.target.value),
           onKeyDown,
-          rows: 1,
-        }),
-        React.createElement('button', { className: 'an-cw__send', disabled: !input.trim() || sending, onClick: onSend },
-          sending ? '发送中…' : '发送'
-        )
+          rows: 2,
+        })
       ),
-      React.createElement('div', { className: 'an-cw__hint' },
-        React.createElement('span', { className: statusClass }, statusText),
-        React.createElement('span', { className: 'an-cw__hint-spacer' }),
-        busy ? React.createElement('span', { className: 'an-cw__abort', onClick: onAbort }, '中止') : null
+      React.createElement('div', { className: 'an-cw__tools' },
+        React.createElement('span', { className: 'an-cw__tool', title: '提到文件' }, '@'),
+        React.createElement('span', { className: 'an-cw__tool', title: '使用 # 引用' }, '#'),
+        React.createElement('span', { className: 'an-cw__tool', title: '上传图片' }, '🖼'),
+        React.createElement('span', { className: 'an-cw__tools-spacer' }),
+        React.createElement('span', { className: 'an-cw__model', title: '切换模型', onClick: () => {/* TODO: 模型选择器 */} },
+          'Auto · ' + model
+        ),
+        busy ? React.createElement('span', { className: 'an-cw__tool', onClick: onAbort, style: { color: 'var(--errorForeground)' } }, '停止') : null,
+        React.createElement('button', { className: 'an-cw__send', disabled: !input.trim() || sending, onClick: onSend, title: '发送 (Enter)' },
+          '↑'
+        )
       )
     )
   );
