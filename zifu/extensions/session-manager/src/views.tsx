@@ -218,10 +218,13 @@ const SessionManager = () => {
     [refresh, activeId]
   );
 
-  // SSE 事件监听: taichu sidebar 模式, 收到 session.* 或 message.updated 事件时静默刷新
+  // 初始加载 + SSE 事件监听: taichu sidebar 模式
   useEffect(() => {
     let cancelled = false;
     let stream: AsyncGenerator<any> | null = null;
+
+    // 初始加载: 立即拉取一次历史会话
+    refresh();
 
     (async () => {
       while (!cancelled) {
@@ -251,7 +254,7 @@ const SessionManager = () => {
               const inner: any = parsed?.payload || parsed;
               const realType = inner?.type || '';
               if (realType.startsWith('session.') || realType === 'message.updated') {
-                refresh(true);  // 静默刷新（taichu scheduleRefresh 模式）
+                refresh(true);
               }
             }
           }
