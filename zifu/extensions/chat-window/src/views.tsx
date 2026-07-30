@@ -312,30 +312,32 @@ const ChatWindow = () => {
             );
           })
     ),
-    // 底部: 输入框 + 工具栏 (Trae 风格)
-    React.createElement('div', { className: 'an-cw__foot' },
-      React.createElement('div', { className: 'an-cw__composer' },
-        React.createElement('textarea', {
-          placeholder: '输入消息, Enter 发送, Shift+Enter 换行',
-          value: input,
-          disabled: sending,
-          onChange: (e) => setInput(e.target.value),
-          onKeyDown,
-          rows: 2,
-        })
-      ),
-      React.createElement('div', { className: 'an-cw__tools' },
-        React.createElement('span', { className: 'an-cw__tool', title: '提到文件' }, '@'),
-        React.createElement('span', { className: 'an-cw__tool', title: '使用 # 引用' }, '#'),
-        React.createElement('span', { className: 'an-cw__tool', title: '上传图片' }, '🖼'),
-        React.createElement('span', { className: 'an-cw__tools-spacer' }),
-        React.createElement('span', { className: 'an-cw__model', title: '切换模型', onClick: () => {/* TODO: 模型选择器 */} },
-          'Auto · ' + model
+      // 底部: 输入框 + 工具栏 (Trae 风格)
+      React.createElement('div', { className: 'an-cw__foot' },
+        React.createElement('div', { className: 'an-cw__composer' },
+          React.createElement('textarea', {
+            placeholder: '输入消息, Enter 发送, Shift+Enter 换行',
+            value: input,
+            disabled: sending,
+            onChange: (e) => setInput(e.target.value),
+            onKeyDown,
+            rows: 2,
+          })
         ),
-        busy ? React.createElement('span', { className: 'an-cw__tool', onClick: onAbort, style: { color: 'var(--errorForeground)' } }, '停止') : null,
-        React.createElement('button', { className: 'an-cw__send', disabled: !input.trim() || sending, onClick: onSend, title: '发送 (Enter)' },
-          '↑'
+        React.createElement('div', { className: 'an-cw__tools' },
+          React.createElement('span', { className: 'an-cw__tool', title: '提到文件' }, '@'),
+          React.createElement('span', { className: 'an-cw__tool', title: '使用 # 引用' }, '#'),
+          React.createElement('span', { className: 'an-cw__tools-spacer' }),
+          React.createElement('span', { className: 'an-cw__model', title: '切换模型', onClick: () => {/* TODO: 模型选择器 */} },
+            'Auto · ' + model
+          ),
+          busy ? React.createElement('span', { className: 'an-cw__tool', onClick: onAbort, style: { color: 'var(--errorForeground)' } }, '停止') : null,
+          React.createElement('button', { className: 'an-cw__send', disabled: !input.trim() || sending, onClick: onSend, title: '发送 (Enter)' },
+            '↑'
+          )
         )
+      )
+    )
       )
     )
   );

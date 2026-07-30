@@ -327,13 +327,19 @@ const SessionManager = () => {
     React.createElement(
       'div',
       { className: 'an-sm__top' },
-      // 顶部只保留搜索, 新对话移到 chat-window 头部
+      // 顶部: +新对话按钮 + 搜索框
+      React.createElement(
+        'div',
+        { className: 'an-sm__new', onClick: onCreate, role: 'button', tabIndex: 0, title: '新对话 (⌘K)' },
+        React.createElement(PlusIcon, null),
+        React.createElement('span', null, '新对话')
+      ),
       React.createElement(
         'div',
         { className: 'an-sm__search' },
         React.createElement('span', { className: 'an-sm__search-icon' }, React.createElement(SearchIcon, null)),
         React.createElement('input', {
-          placeholder: '搜索历史会话',
+          placeholder: '搜索',
           value: keyword,
           onChange: (e: any) => setKeyword(e.target.value),
         })
@@ -365,20 +371,8 @@ const SessionManager = () => {
             )
           )
     ),
-    React.createElement(
-      'div',
-      { className: 'an-sm__foot' },
-      React.createElement(
-        'div',
-        { className: 'an-sm__new', onClick: onCreate, role: 'button', tabIndex: 0, title: '新对话 (⌘K)' },
-        React.createElement(PlusIcon, null),
-        React.createElement('span', null, '新对话')
-      ),
-      React.createElement('div', { className: 'an-sm__profile' },
-        React.createElement('span', { className: 'an-sm__avatar' }, 'A'),
-        React.createElement('span', { className: 'an-sm__user' }, '洪荒')
-      )
-    )
+    // 底部: 简洁, 无 avatar (Trae 风格)
+    null
   );
 };
 
