@@ -67,7 +67,8 @@ const CSS = `
 .an-sm__item:hover .an-sm__item-del { visibility:visible; opacity:.65; }
 .an-sm__item-del:hover { opacity:1 !important; background:var(--toolbar-hoverBackground); }
 .an-sm__empty { padding:28px 16px; text-align:center; line-height:1.7; color:var(--descriptionForeground); user-select:none; }
-.an-sm__foot { border-top:1px solid var(--sideBar-border,transparent); padding:10px 12px; display:flex; align-items:center; gap:8px; }
+.an-sm__foot { border-top:1px solid var(--sideBar-border,transparent); padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
+.an-sm__profile { display:flex; align-items:center; gap:8px; padding:4px 6px; }
 .an-sm__avatar { width:24px; height:24px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; user-select:none; background:var(--badge-background); color:var(--badge-foreground); }
 .an-sm__user { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 `;
@@ -326,19 +327,13 @@ const SessionManager = () => {
     React.createElement(
       'div',
       { className: 'an-sm__top' },
-      React.createElement(
-        'div',
-        { className: 'an-sm__new', onClick: onCreate, role: 'button', tabIndex: 0 },
-        React.createElement(PlusIcon, null),
-        React.createElement('span', null, '新对话'),
-        React.createElement('span', { className: 'an-sm__new-kbd' }, '⌘K')
-      ),
+      // 顶部只保留搜索, 新对话移到 chat-window 头部
       React.createElement(
         'div',
         { className: 'an-sm__search' },
         React.createElement('span', { className: 'an-sm__search-icon' }, React.createElement(SearchIcon, null)),
         React.createElement('input', {
-          placeholder: '搜索对话',
+          placeholder: '搜索历史会话',
           value: keyword,
           onChange: (e: any) => setKeyword(e.target.value),
         })
@@ -373,8 +368,16 @@ const SessionManager = () => {
     React.createElement(
       'div',
       { className: 'an-sm__foot' },
-      React.createElement('span', { className: 'an-sm__avatar' }, 'A'),
-      React.createElement('span', { className: 'an-sm__user' }, '洪荒')
+      React.createElement(
+        'div',
+        { className: 'an-sm__new', onClick: onCreate, role: 'button', tabIndex: 0, title: '新对话 (⌘K)' },
+        React.createElement(PlusIcon, null),
+        React.createElement('span', null, '新对话')
+      ),
+      React.createElement('div', { className: 'an-sm__profile' },
+        React.createElement('span', { className: 'an-sm__avatar' }, 'A'),
+        React.createElement('span', { className: 'an-sm__user' }, '洪荒')
+      )
     )
   );
 };

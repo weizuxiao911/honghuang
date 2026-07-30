@@ -21,7 +21,7 @@
         "view": [
           {
             "id": "zifu.chatWindow",
-            "icon": "comment-discussion",
+            "icon": "message",
             "title": "洪荒对话"
           }
         ]

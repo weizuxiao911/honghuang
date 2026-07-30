@@ -36,7 +36,7 @@
         "view": [
           {
             "id": "zifu.sessionManager",
-            "icon": "robot",
+            "icon": "add-comments",
             "title": "洪荒会话"
           }
         ]

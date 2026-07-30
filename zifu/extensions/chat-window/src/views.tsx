@@ -252,15 +252,31 @@ const ChatWindow = () => {
 
   const scrollRef = useAutoScroll(rows);
   const onSend = useCallback(async () => {
-    if (!sessionID || !input.trim() || sending) return;
+    if (!input.trim() || sending) return;
     setSending(true);
     setError('');
     const text = input;
     setInput('');
     try {
+      let sid = sessionID;
+      if (!sid) {
+        // 自动创建 session (不设 title, opencode 自动生成)
+        const r = await fetch(`${OPENCODE_BASE_URL}/session`, {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!r.ok) throw new Error('POST /session ' + r.status);
+        const s = await r.json();
+        sid = s.id;
+        setSessionID(sid);
+        try { localStorage.setItem(ACTIVE_SESSION_KEY, sid); } catch {}
+        // 通知 session-manager 刷新
+        window.dispatchEvent(new CustomEvent('zifu:session-changed', { detail: { id: sid } }));
+      }
       await client.session.promptAsync({
-        sessionID,
-        model: { providerID: 'opencode', modelID: 'ling-3.0-flash-free' },
+        sessionID: sid,
+        model: { providerID: 'opencode', modelID: model },
         parts: [{ type: 'text', text }],
       });
       setBusy(true);
@@ -268,7 +284,7 @@ const ChatWindow = () => {
       setError(String(e?.message || e));
       setInput(text);
     } finally { setSending(false); }
-  }, [sessionID, input, sending]);
+  }, [sessionID, input, sending, model]);
 
   const onAbort = useCallback(async () => {
     if (!sessionID) return;
@@ -329,16 +345,23 @@ const ChatWindow = () => {
           })
     ),
     React.createElement('div', { className: 'an-cw__foot' },
+      // 状态行 (已连接, 模型等) - 始终显示
+      React.createElement('div', { className: 'an-cw__hint' },
+        React.createElement('span', { className: statusClass }, statusText),
+        React.createElement('span', { className: 'an-cw__hint-spacer' }),
+        busy ? React.createElement('span', { className: 'an-cw__abort', onClick: onAbort }, '中止') : null
+      ),
+      // 输入框 - 始终可见, 始终可输入 (无 session 时点击创建并发送)
       React.createElement('div', { className: 'an-cw__composer' },
         React.createElement('textarea', {
-          placeholder: sessionID ? '输入消息，Enter 发送，Shift+Enter 换行' : '先在左侧选择或新建对话',
+          placeholder: sessionID ? '输入消息，Enter 发送，Shift+Enter 换行' : '输入消息自动新建会话并发送',
           value: input,
-          disabled: !sessionID || sending,
+          disabled: sending,
           onChange: (e) => setInput(e.target.value),
           onKeyDown,
           rows: 1,
         }),
-        React.createElement('button', { className: 'an-cw__send', disabled: !sessionID || !input.trim() || sending, onClick: onSend },
+        React.createElement('button', { className: 'an-cw__send', disabled: !input.trim() || sending, onClick: onSend },
           sending ? '发送中…' : '发送'
         )
       ),
