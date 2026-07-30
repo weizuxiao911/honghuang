@@ -1,0 +1,36 @@
+{
+  "name": "yunyan-vscode-paper",
+  "displayName": "Yunyan Paper Plugin (Web)",
+  "description": "Yunyan 题目插件（浏览器兼容版）：.paper 文件的自定义编辑器，用 VSCode 标准扩展契约实现，无 Node 依赖。",
+  "version": "0.0.2",
+  "publisher": "yunyan",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCustomEditor:yunyan-paperPlugin.paperEditor"
+  ],
+  "browser": "./out/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "yunyan-paperPlugin.paperEditor",
+        "displayName": "Yunyan Paper Viewer",
+        "selector": [
+          { "filenamePattern": "*.paper" }
+        ],
+        "priority": "default"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "package": "node scripts/build.js && vsce package --no-dependencies --allow-missing-repository --allow-star-activation"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.5.4"
+  }
+}

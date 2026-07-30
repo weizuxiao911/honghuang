@@ -12,10 +12,14 @@ const DIST_DIR = path.join(ROOT, 'dist');
 const PUBLIC_HOST = process.env.PUBLIC_HOST || 'localhost:9000';
 
 // package.json 中被运行时消费的字段（与 CodeBlitz 扫描逻辑一致）。
+// `main` 用于标准 VSCode 扩展（Node.js 入口），`browser` 用于 web/opensumi 扩展；
+// CodeBlitz 需要两者都可用才能正确激活 customEditor / commands 等原生 VSCode 契约扩展。
 const PICK_FIELDS = [
   'name',
   'publisher',
   'version',
+  'engines',
+  'categories',
   'repository',
   'displayName',
   'description',
@@ -23,6 +27,7 @@ const PICK_FIELDS = [
   'activationEvents',
   'sumiContributes',
   'contributes',
+  'main',
   'browser',
 ] as const;
 
@@ -104,6 +109,13 @@ function buildMetadata(pkg: PackageJSON, id: string): ExtensionMetadata {
       packageJSON.contributes as Record<string, unknown> | undefined,
       sumiContributes
     );
+  }
+  // CodeBlitz 是纯浏览器运行时，没有 Node 后端进程；标准 VSCode 扩展的 `main`
+  // 只在 Node 进程加载，浏览器只会走 `browser` 字段。若扩展只声明 `main` 而未声明 `browser`，
+  // 我们将其别名到 `browser`，让 activationEvent 能在 web worker 内触发扩展入口。
+  // 前提：扩展代码仅使用 vscode API + webview API + 纯 JS 依赖（无 fs/net/node builtins）。
+  if (typeof packageJSON.main === 'string' && !packageJSON.browser) {
+    packageJSON.browser = packageJSON.main;
   }
   return {
     extension: { publisher: pkg.publisher, name: pkg.name, version: pkg.version },
