@@ -38,30 +38,30 @@ async function deleteSession(id: string): Promise<void> {
 
 const STYLE_ID = 'zifu-session-manager-style';
 const CSS = `
-.an-sm { display:flex; flex-direction:column; height:100%; font-size:var(--font-size,13px); color:var(--sideBar-foreground,var(--foreground)); background:var(--sideBar-background); }
-.an-sm__top { padding:10px 10px 2px; display:flex; flex-direction:column; gap:8px; }
-.an-sm__search { display:flex; align-items:center; gap:6px; height:28px; padding:0 8px; border-radius:6px; color:var(--input-foreground); background:var(--input-background); border:1px solid var(--input-border,transparent); }
-.an-sm__search:focus-within { border-color:var(--focusBorder); outline:1px solid var(--focusBorder); outline-offset:-2px; }
+.an-sm { display:flex; flex-direction:column; height:100%; font-size:var(--font-size,13px); color:var(--sideBar-foreground,var(--foreground)); background:var(--sideBar-background); padding-top:8px; }
+.an-sm__top { padding:8px 10px 16px 10px; display:flex; flex-direction:column; gap:10px; border-bottom:1px solid var(--sideBar-border, transparent); margin-bottom:8px; }
+.an-sm__search { display:flex; align-items:center; gap:6px; height:26px; padding:0 8px; border-radius:6px; color:var(--input-foreground); background:var(--input-background); border:1px solid var(--input-border,transparent); }
+.an-sm__search:focus-within { border-color:var(--focusBorder); }
 .an-sm__search-icon { flex:0 0 auto; display:flex; color:var(--input-placeholderForeground); }
 .an-sm__search input { flex:1; min-width:0; border:none; outline:none; background:transparent; color:inherit; font:inherit; }
 .an-sm__search input::placeholder { color:var(--input-placeholderForeground); }
-.an-sm__new { display:flex; align-items:center; gap:8px; height:30px; padding:0 10px; border-radius:6px; cursor:pointer; font-weight:500; user-select:none; color:var(--foreground); background:var(--input-background); border:1px solid var(--input-border,transparent); }
+.an-sm__new { display:flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:6px; cursor:pointer; font-weight:500; user-select:none; color:var(--foreground); background:var(--input-background); border:1px solid var(--input-border,transparent); }
 .an-sm__new:hover { background:var(--list-hoverBackground); }
 .an-sm__new:focus-visible { outline:1px solid var(--focusBorder); outline-offset:1px; }
-.an-sm__new-kbd { margin-left:auto; font-size:11px; color:var(--descriptionForeground); }
-.an-sm__err { margin:8px 10px 2px; padding:8px 10px; border-radius:6px; font-size:12px; display:flex; align-items:center; gap:8px; color:var(--inputValidation-errorForeground,var(--errorForeground)); background:var(--inputValidation-errorBackground,transparent); border:1px solid var(--inputValidation-errorBorder,currentColor); }
-.an-sm__err-msg { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.an-sm__err-retry { flex:0 0 auto; padding:2px 8px; border-radius:4px; cursor:pointer; user-select:none; color:var(--button-secondaryForeground); background:var(--button-secondaryBackground); border:1px solid var(--button-border,transparent); }
+.an-sm__new-kbd { margin-left:auto; font-size:10px; color:var(--descriptionForeground); }
+.an-sm__err { margin:8px 10px 8px 10px; padding:8px 10px; border-radius:6px; font-size:12px; color:var(--inputValidation-errorForeground,var(--errorForeground)); background:var(--inputValidation-errorBackground,transparent); border:1px solid var(--inputValidation-errorBorder,currentColor); }
+.an-sm__err-retry { margin-left:8px; padding:2px 8px; border-radius:4px; cursor:pointer; user-select:none; color:var(--button-secondaryForeground); background:var(--button-secondaryBackground); border:1px solid var(--button-border,transparent); }
 .an-sm__err-retry:hover { background:var(--button-secondaryHoverBackground); }
-.an-sm__list { flex:1; overflow-y:auto; padding:2px 6px 10px; }
-.an-sm__group { padding:12px 8px 4px; font-size:11px; font-weight:600; letter-spacing:.04em; user-select:none; color:var(--sideBarSectionHeader-foreground,var(--descriptionForeground)); }
-.an-sm__item { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; }
+.an-sm__list { flex:1; overflow-y:auto; padding:0 6px 10px; }
+.an-sm__group { padding:20px 10px 8px; font-size:11px; font-weight:600; letter-spacing:.06em; user-select:none; color:var(--sideBarSectionHeader-foreground,var(--descriptionForeground)); }
+.an-sm__group:first-child { padding-top:8px; }
+.an-sm__item { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; cursor:pointer; font-size:13px; }
 .an-sm__item:hover { background:var(--list-hoverBackground); color:var(--list-hoverForeground,inherit); }
 .an-sm__item.is-active, .an-sm__item.is-active:hover { background:var(--list-activeSelectionBackground); color:var(--list-activeSelectionForeground,inherit); }
 .an-sm__item:focus-visible { outline:1px solid var(--focusBorder); outline-offset:-1px; }
 .an-sm__item-icon { flex:0 0 auto; display:flex; opacity:.75; }
 .an-sm__item-title { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.an-sm__item-time { flex:0 0 auto; font-size:11px; color:var(--descriptionForeground); }
+.an-sm__item-time { flex:0 0 auto; font-size:10px; color:var(--descriptionForeground); }
 .an-sm__item.is-active .an-sm__item-time { color:inherit; opacity:.65; }
 .an-sm__item-del { flex:0 0 auto; visibility:hidden; padding:3px; border-radius:4px; display:flex; color:inherit; }
 .an-sm__item:hover .an-sm__item-del { visibility:visible; opacity:.65; }
@@ -328,6 +328,13 @@ const SessionManager = () => {
       { className: 'an-sm__top' },
       React.createElement(
         'div',
+        { className: 'an-sm__new', onClick: onCreate, role: 'button', tabIndex: 0 },
+        React.createElement(PlusIcon, null),
+        React.createElement('span', null, '新对话'),
+        React.createElement('span', { className: 'an-sm__new-kbd' }, '⌘K')
+      ),
+      React.createElement(
+        'div',
         { className: 'an-sm__search' },
         React.createElement('span', { className: 'an-sm__search-icon' }, React.createElement(SearchIcon, null)),
         React.createElement('input', {
@@ -335,13 +342,6 @@ const SessionManager = () => {
           value: keyword,
           onChange: (e: any) => setKeyword(e.target.value),
         })
-      ),
-      React.createElement(
-        'div',
-        { className: 'an-sm__new', onClick: onCreate, role: 'button', tabIndex: 0 },
-        React.createElement(PlusIcon, null),
-        React.createElement('span', null, '新对话'),
-        React.createElement('span', { className: 'an-sm__new-kbd' }, '⌘K')
       )
     ),
     error

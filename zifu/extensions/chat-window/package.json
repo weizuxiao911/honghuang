@@ -15,18 +15,18 @@
   "sumiContributes": {
     "workerMain": "./out/extension.js",
     "browserMain": "./out/views.js",
-"browserViews": {
-        "right": {
-          "type": "add",
-          "view": [
-            {
-              "id": "zifu.chatWindow",
-              "icon": "message",
-              "title": "洪荒对话"
-            }
-          ]
-        }
+    "browserViews": {
+      "right": {
+        "type": "add",
+        "view": [
+          {
+            "id": "zifu.chatWindow",
+            "icon": "comment-discussion",
+            "title": "洪荒对话"
+          }
+        ]
       }
+    }
   },
   "scripts": {
     "build": "node scripts/build.js",
