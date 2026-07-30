@@ -13,47 +13,60 @@ const client = createOpencodeClient({
 });
 
 const CSS = `
-.an-cw { display:flex; flex-direction:column; height:100%; font-size:14px; color:var(--sideBar-foreground,var(--foreground)); background:var(--sideBar-background); }
-.an-cw__top { display:flex; align-items:center; gap:8px; padding:8px 12px; flex-shrink:0; color:var(--descriptionForeground); font-size:12px; }
-.an-cw__top-label { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.an-cw__top-status { flex:0 0 auto; display:flex; align-items:center; gap:6px; color:var(--descriptionForeground); }
-.an-cw__top-dot { width:6px; height:6px; border-radius:50%; background:var(--descriptionForeground); }
-.an-cw__top-dot.is-live { background:var(--terminal-ansiGreen,#22c55e); }
-.an-cw__top-dot.is-busy { background:var(--terminal-ansiYellow,#eab308); animation:an-cw-pulse 1s infinite; }
-.an-cw__top-dot.is-error { background:var(--errorForeground,#f87171); }
-@keyframes an-cw-pulse { 0%,100% { opacity:.4 } 50% { opacity:1 } }
-.an-cw__intro { padding:16px 20px 8px; flex-shrink:0; }
-.an-cw__intro-title { font-size:18px; font-weight:600; margin-bottom:4px; }
-.an-cw__intro-desc { font-size:12px; color:var(--descriptionForeground); line-height:1.6; }
-.an-cw__scroll { flex:1; min-height:0; overflow-y:auto; padding:12px 20px; display:flex; flex-direction:column; gap:14px; }
-.an-cw__empty { margin:auto; padding:40px 20px; text-align:center; color:var(--descriptionForeground); line-height:1.7; user-select:none; font-size:14px; }
+.an-cw { display:flex; flex-direction:column; height:100%; font-size:14px; color:var(--sideBar-foreground,var(--foreground)); background:transparent; position:relative; }
+.an-cw__assistant { display:flex; align-items:center; gap:10px; padding:16px 20px 4px; flex-shrink:0; }
+.an-cw__assistant-avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #8b5cf6, #6366f1); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; font-weight:600; flex-shrink:0; }
+.an-cw__assistant-info { flex:1; min-width:0; }
+.an-cw__assistant-name { font-size:16px; font-weight:600; line-height:1.3; }
+.an-cw__assistant-desc { font-size:12px; color:var(--descriptionForeground); line-height:1.5; margin-top:2px; }
+.an-cw__assistant-edit { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--descriptionForeground); cursor:pointer; user-select:none; background:transparent; border:none; }
+.an-cw__assistant-edit:hover { background:var(--list-hoverBackground); color:var(--foreground); }
+.an-cw__intro-card { margin:8px 20px 16px; padding:14px 16px; border-radius:10px; background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.15); color:var(--descriptionForeground); font-size:13px; line-height:1.6; }
+.an-cw__scroll { flex:1; min-height:0; overflow-y:auto; padding:6px 20px 12px; display:flex; flex-direction:column; gap:14px; }
+.an-cw__empty { margin:auto; padding:30px 20px; text-align:center; color:var(--descriptionForeground); line-height:1.7; user-select:none; font-size:13px; }
 .an-cw__msg { display:flex; flex-direction:column; gap:4px; }
-.an-cw__msg-role { font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--descriptionForeground); user-select:none; }
+.an-cw__msg-role { font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--descriptionForeground); user-select:none; padding:0 6px; }
 .an-cw__msg.is-user { align-items:flex-end; }
 .an-cw__msg.is-user .an-cw__msg-role { color:var(--textLink-foreground,var(--focusBorder)); }
-.an-cw__bubble { padding:10px 14px; border-radius:12px; max-width:100%; white-space:pre-wrap; word-break:break-word; line-height:1.6; font-size:13px; }
+.an-cw__bubble { padding:9px 14px; border-radius:14px; max-width:85%; white-space:pre-wrap; word-break:break-word; line-height:1.55; font-size:14px; }
 .an-cw__msg.is-user .an-cw__bubble { background:var(--list-activeSelectionBackground); color:var(--list-activeSelectionForeground,inherit); border-top-right-radius:4px; }
-.an-cw__msg.is-assistant .an-cw__bubble { background:var(--editorWidget-background,var(--input-background)); border:1px solid var(--editorWidget-border,var(--input-border,transparent)); border-top-left-radius:4px; }
+.an-cw__msg.is-assistant .an-cw__bubble { background:rgba(255,255,255,0.04); border:1px solid var(--editorWidget-border,var(--input-border,transparent)); border-top-left-radius:4px; }
 .an-cw__bubble--err { color:var(--inputValidation-errorForeground,var(--errorForeground)); }
-.an-cw__part-tool { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:5px; font-size:11px; margin:2px 4px 2px 0; background:var(--badge-background); color:var(--badge-foreground); }
-.an-cw__part-reason { font-size:12px; opacity:.7; font-style:italic; }
+.an-cw__part-reason { margin:6px 0; padding:8px 12px; border-radius:8px; font-size:13px; opacity:.8; font-style:italic; background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.18); }
 .an-cw__cursor::after { content:'\\258C'; display:inline-block; animation:an-cw-blink 1s steps(2) infinite; margin-left:2px; opacity:.6; }
 @keyframes an-cw-blink { 50% { opacity:0; } }
-.an-cw__err { margin:0 12px; padding:8px 10px; border-radius:6px; font-size:12px; color:var(--inputValidation-errorForeground,var(--errorForeground)); background:var(--inputValidation-errorBackground,transparent); border:1px solid var(--inputValidation-errorBorder,currentColor); }
-.an-cw__foot { border-top:1px solid var(--sideBar-border,transparent); padding:10px 12px 14px 12px; display:flex; flex-direction:column; gap:6px; flex-shrink:0; background:var(--sideBar-background); }
-.an-cw__composer { padding:8px 10px; border-radius:10px; background:var(--input-background); border:1px solid var(--input-border,transparent); }
-.an-cw__composer:focus-within { border-color:var(--focusBorder); }
-.an-cw__composer textarea { display:block; width:100%; min-height:48px; max-height:240px; resize:none; border:none; outline:none; background:transparent; color:var(--input-foreground,inherit); font:inherit; line-height:1.55; padding:2px 0; }
-.an-cw__composer textarea::placeholder { color:var(--input-placeholderForeground); }
-.an-cw__tools { display:flex; align-items:center; gap:10px; margin-top:6px; font-size:12px; color:var(--descriptionForeground); }
-.an-cw__tool { display:flex; align-items:center; gap:4px; padding:2px 6px; border-radius:5px; cursor:pointer; user-select:none; }
+.an-cw__err { margin:0 20px 8px; padding:8px 12px; border-radius:8px; font-size:12px; color:var(--inputValidation-errorForeground,var(--errorForeground)); background:var(--inputValidation-errorBackground,transparent); border:1px solid var(--inputValidation-errorBorder,currentColor); }
+.an-cw__examples { padding:0 20px 12px; display:flex; flex-direction:column; gap:6px; }
+.an-cw__examples-label { font-size:12px; color:var(--descriptionForeground); margin-bottom:4px; }
+.an-cw__examples-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.an-cw__example { padding:6px 10px; border-radius:8px; font-size:12px; background:rgba(255,255,255,0.04); border:1px solid var(--editorWidget-border, transparent); cursor:pointer; user-select:none; color:var(--descriptionForeground); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.an-cw__example:hover { background:rgba(99,102,241,0.1); border-color:rgba(99,102,241,0.3); color:var(--foreground); }
+.an-cw__work { padding:0 20px 10px; font-size:12px; color:var(--descriptionForeground); }
+.an-cw__work a, .an-cw__work span { color:var(--textLink-foreground,var(--focusBorder)); cursor:pointer; }
+.an-cw__work a:hover, .an-cw__work span:hover { text-decoration:underline; }
+.an-cw__foot { padding:8px 20px 14px 20px; display:flex; flex-direction:column; gap:4px; flex-shrink:0; background:transparent; }
+.an-cw__composer { padding:10px 12px; border-radius:18px; background:var(--input-background); border:1px solid var(--input-border, transparent); transition:border-color .15s; }
+.an-cw__composer:focus-within { border-color:rgba(99,102,241,0.6); box-shadow:0 0 0 4px rgba(99,102,241,0.08); }
+.an-cw__composer-textarea { display:block; width:100%; min-height:32px; max-height:240px; resize:none; border:none; outline:none; background:transparent; color:var(--input-foreground,inherit); font:inherit; line-height:1.6; padding:4px 0; }
+.an-cw__composer-textarea::placeholder { color:var(--input-placeholderForeground); }
+.an-cw__composer-tools { display:flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; color:var(--descriptionForeground); }
+.an-cw__tool { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; cursor:pointer; user-select:none; background:transparent; border:none; color:var(--descriptionForeground); }
 .an-cw__tool:hover { background:var(--list-hoverBackground); color:var(--foreground); }
 .an-cw__tools-spacer { flex:1; }
-.an-cw__send { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none; color:#fff; background:var(--button-background, #2563eb); border:none; font-weight:600; font-size:14px; }
-.an-cw__send:hover:not(:disabled) { filter:brightness(1.1); }
-.an-cw__send:disabled { opacity:.4; cursor:not-allowed; }
-.an-cw__model { display:flex; align-items:center; gap:4px; padding:2px 6px; border-radius:5px; cursor:pointer; user-select:none; font-size:12px; }
-.an-cw__model:hover { background:var(--list-hoverBackground); }
+.an-cw__model { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:5px; cursor:pointer; user-select:none; font-size:12px; color:var(--descriptionForeground); }
+.an-cw__model:hover { background:var(--list-hoverBackground); color:var(--foreground); }
+.an-cw__send { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none; color:#fff; background:#6366f1; border:none; font-weight:600; font-size:14px; box-shadow:0 2px 8px rgba(99,102,241,0.35); }
+.an-cw__send:hover:not(:disabled) { background:#4f46e5; box-shadow:0 2px 12px rgba(99,102,241,0.5); }
+.an-cw__send:disabled { opacity:.4; cursor:not-allowed; box-shadow:none; background:var(--button-secondaryBackground, #475569); }
+.an-cw__send-abort { background:#ef4444; }
+.an-cw__send-abort:hover:not(:disabled) { background:#dc2626; box-shadow:0 2px 12px rgba(239,68,68,0.5); }
+.an-cw__status { font-size:11px; color:var(--descriptionForeground); display:flex; align-items:center; gap:6px; padding:0 4px; }
+.an-cw__status-dot { width:6px; height:6px; border-radius:50%; background:var(--descriptionForeground); }
+.an-cw__status-dot.is-live { background:#22c55e; }
+.an-cw__status-dot.is-busy { background:#eab308; animation:an-cw-pulse 1s infinite; }
+.an-cw__status-dot.is-error { background:#ef4444; }
+@keyframes an-cw-pulse { 0%,100% { opacity:.4 } 50% { opacity:1 } }
+.an-cw__status-spacer { flex:1; }
 `;
 
 function useInjectStyle() {
@@ -65,6 +78,13 @@ function useInjectStyle() {
     document.head.appendChild(el);
   }, []);
 }
+
+const EXAMPLES = [
+  '分析当前项目结构并提出改进建议',
+  '自动执行构建和部署流程',
+  '总结项目中的关键信息',
+  '生成项目 README 文档',
+];
 
 const ChatWindow = () => {
   useInjectStyle();
@@ -83,7 +103,6 @@ const ChatWindow = () => {
   const sessionIDRef = useRef(sessionID);
   useEffect(() => { sessionIDRef.current = sessionID; }, [sessionID]);
 
-  // 加载 session 标题 (从 opencode /session/{id})
   useEffect(() => {
     let cancelled = false;
     if (!sessionID) { setSessionTitle(''); return; }
@@ -99,18 +118,6 @@ const ChatWindow = () => {
     })();
     return () => { cancelled = true; };
   }, [sessionID]);
-
-  // 监听 SSE session.updated 自动刷新 title
-  useEffect(() => {
-    const handler = (e: any) => {
-      const sid = e?.detail?.sessionID;
-      if (sid && sid === sessionIDRef.current && e.detail?.title) {
-        setSessionTitle(e.detail.title);
-      }
-    };
-    window.addEventListener('zifu:session-title-update', handler as any);
-    return () => window.removeEventListener('zifu:session-title-update', handler as any);
-  }, []);
 
   useEffect(() => {
     const onChange = (e) => setSessionID(e?.detail?.id || '');
@@ -234,7 +241,6 @@ const ChatWindow = () => {
     try {
       let sid = sessionID;
       if (!sid) {
-        // 自动创建 session (不设 title, opencode 自动生成)
         const r = await fetch(`${OPENCODE_BASE_URL}/session`, {
           method: 'POST',
           headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -245,7 +251,6 @@ const ChatWindow = () => {
         sid = s.id;
         setSessionID(sid);
         try { localStorage.setItem(ACTIVE_SESSION_KEY, sid); } catch {}
-        // 通知 session-manager 刷新
         window.dispatchEvent(new CustomEvent('zifu:session-changed', { detail: { id: sid } }));
       }
       await client.session.promptAsync({
@@ -269,28 +274,37 @@ const ChatWindow = () => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); onSend(); }
   }, [onSend]);
 
-  const statusText = !sessionID ? '未选择' : busy ? '生成中' : live ? '已连接' : '连接中';
-  const statusClass = 'an-cw__hint-status' + (error ? ' is-error' : busy ? ' is-busy' : live && sessionID ? ' is-live' : '');
+  const showExamples = !sessionID;
+  const introText = sessionTitle
+    ? `对话进行中 · 模型 ${model}`
+    : '轻松应对复杂项目开发';
 
   return React.createElement('div', { className: 'an-cw' },
-    // 顶部: session title (左) + 状态 (右)
-    React.createElement('div', { className: 'an-cw__top' },
-      React.createElement('span', { className: 'an-cw__top-label' },
-        sessionTitle || (sessionID ? '对话中' : '欢迎使用')),
-      React.createElement('span', { className: 'an-cw__top-status' },
-        React.createElement('span', { className: 'an-cw__top-dot ' + (error ? 'is-error' : busy ? 'is-busy' : live && sessionID ? 'is-live' : '') }),
-        statusText
-      )
+    // 助手头部
+    React.createElement('div', { className: 'an-cw__assistant' },
+      React.createElement('div', { className: 'an-cw__assistant-avatar' }, 'A'),
+      React.createElement('div', { className: 'an-cw__assistant-info' },
+        React.createElement('div', { className: 'an-cw__assistant-name' }, sessionTitle || '洪荒 Agent'),
+        React.createElement('div', { className: 'an-cw__assistant-desc' }, introText)
+      ),
+      React.createElement('button', { className: 'an-cw__assistant-edit', title: '新对话', onClick: () => {
+        // 通知 session-manager 创建
+        const r = await fetch(`${OPENCODE_BASE_URL}/session`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+        });
+        if (r.ok) {
+          const s = await r.json();
+          window.dispatchEvent(new CustomEvent('zifu:session-changed', { detail: { id: s.id } }));
+        }
+      } }, '✎')
     ),
-    error ? React.createElement('div', { className: 'an-cw__err' }, error) : null,
-    // 介绍区 (无 session 时显示 Agent 介绍)
+    // 介绍 (无 session 时)
     !sessionID
-      ? React.createElement('div', { className: 'an-cw__intro' },
-          React.createElement('div', { className: 'an-cw__intro-title' }, 'Agent'),
-          React.createElement('div', { className: 'an-cw__intro-desc' }, '轻松应对复杂项目开发\n• 擅长项目迭代、问题修复与架构重构\n• 智能任务规划, 确认后精准推进执行\n• 自主编排智能体, AI 专家团队协同开发')
+      ? React.createElement('div', { className: 'an-cw__intro-card' },
+          '💡 轻松应对复杂项目开发 · 擅长项目迭代、问题修复与架构重构 · 智能任务规划, 确认后精准推进执行 · 自主编排智能体, AI 专家团队协同开发'
         )
       : null,
-    // 消息区
+    // 消息流
     React.createElement('div', { className: 'an-cw__scroll', ref: scrollRef },
       sessionID && rows.length === 0 && !busy
         ? React.createElement('div', { className: 'an-cw__empty' }, '发送第一条消息开始对话')
@@ -303,7 +317,7 @@ const ChatWindow = () => {
               .filter(Boolean);
             if (visibleParts.length === 0 && role !== 'assistant' && !errMsg) return null;
             return React.createElement('div', { key: r.info.id, className: 'an-cw__msg is-' + role },
-              React.createElement('span', { className: 'an-cw__msg-role' }, role === 'user' ? '你' : 'Assistant'),
+              React.createElement('span', { className: 'an-cw__msg-role' }, role === 'user' ? '你' : '洪荒 Agent'),
               ...visibleParts,
               errMsg ? React.createElement('div', { className: 'an-cw__bubble an-cw__bubble--err' }, errMsg) : null,
               role === 'assistant' && visibleParts.length === 0
@@ -312,32 +326,50 @@ const ChatWindow = () => {
             );
           })
     ),
-      // 底部: 输入框 + 工具栏 (Trae 风格)
-      React.createElement('div', { className: 'an-cw__foot' },
-        React.createElement('div', { className: 'an-cw__composer' },
-          React.createElement('textarea', {
-            placeholder: '输入消息, Enter 发送, Shift+Enter 换行',
-            value: input,
-            disabled: sending,
-            onChange: (e) => setInput(e.target.value),
-            onKeyDown,
-            rows: 2,
-          })
-        ),
-        React.createElement('div', { className: 'an-cw__tools' },
-          React.createElement('span', { className: 'an-cw__tool', title: '提到文件' }, '@'),
-          React.createElement('span', { className: 'an-cw__tool', title: '使用 # 引用' }, '#'),
-          React.createElement('span', { className: 'an-cw__tools-spacer' }),
-          React.createElement('span', { className: 'an-cw__model', title: '切换模型', onClick: () => {/* TODO: 模型选择器 */} },
-            'Auto · ' + model
-          ),
-          busy ? React.createElement('span', { className: 'an-cw__tool', onClick: onAbort, style: { color: 'var(--errorForeground)' } }, '停止') : null,
-          React.createElement('button', { className: 'an-cw__send', disabled: !input.trim() || sending, onClick: onSend, title: '发送 (Enter)' },
-            '↑'
+    // 示例提示 (无 session 时)
+    showExamples
+      ? React.createElement('div', { className: 'an-cw__examples' },
+          React.createElement('div', { className: 'an-cw__examples-label' }, 'Try example prompts:'),
+          React.createElement('div', { className: 'an-cw__examples-grid' },
+            EXAMPLES.map((ex) =>
+              React.createElement('div', {
+                className: 'an-cw__example',
+                onClick: () => setInput(ex),
+                title: ex,
+              }, ex)
+            )
           )
         )
-      )
-    )
+      : null,
+    // "Work in a project" 链接 (无 session 时)
+    showExamples
+      ? React.createElement('div', { className: 'an-cw__work' },
+          React.createElement('span', { onClick: () => {/* TODO: 打开项目 */} }, '📁 Work in a project')
+        )
+      : null,
+    // 底部: 输入框 + 工具栏
+    React.createElement('div', { className: 'an-cw__foot' },
+      error ? React.createElement('div', { className: 'an-cw__err' }, error) : null,
+      React.createElement('div', { className: 'an-cw__composer' },
+        React.createElement('textarea', {
+          className: 'an-cw__composer-textarea',
+          placeholder: '输入消息, Enter 发送, Shift+Enter 换行',
+          value: input,
+          disabled: sending,
+          onChange: (e) => setInput(e.target.value),
+          onKeyDown,
+          rows: 2,
+        })
+      ),
+      React.createElement('div', { className: 'an-cw__composer-tools' },
+        React.createElement('button', { className: 'an-cw__tool', title: '添加附件' }, '+'),
+        React.createElement('span', { className: 'an-cw__tools-spacer' }),
+        React.createElement('span', { className: 'an-cw__model', title: '切换模型' },
+          '⚙ ' + model + ' ▾'
+        ),
+        busy
+          ? React.createElement('button', { className: 'an-cw__send an-cw__send-abort', onClick: onAbort, title: '停止' }, '■')
+          : React.createElement('button', { className: 'an-cw__send', disabled: !input.trim() || sending, onClick: onSend, title: '发送 (Enter)' }, '↑')
       )
     )
   );
@@ -399,12 +431,12 @@ function renderPart(part, streaming) {
       return React.createElement('div', { key: part.id, className: 'an-cw__bubble' + (streaming ? ' an-cw__cursor' : '') }, part.text);
     case 'reasoning':
       return part.text
-        ? React.createElement('div', { key: part.id, className: 'an-cw__part-reason' }, '思考：' + part.text)
+        ? React.createElement('div', { key: part.id, className: 'an-cw__part-reason' }, part.text)
         : null;
     case 'tool': {
       const name = part.tool || part.name || 'tool';
       const state = part.state?.status || 'running';
-      return React.createElement('span', { key: part.id, className: 'an-cw__part-tool' }, name + ' · ' + state);
+      return React.createElement('span', { key: part.id, className: 'an-cw__bubble' }, `[${name}] ${state}`);
     }
     default: return null;
   }
