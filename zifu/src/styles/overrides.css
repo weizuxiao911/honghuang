@@ -3,3 +3,26 @@
 [class*="titlebar___"] {
   display: none !important;
 }
+
+/* 右侧 tabbar 只有 chat 一个视图，图标列没有意义 → 隐藏。 */
+#opensumi-right-tabbar {
+  display: none !important;
+}
+
+/* 编辑器面包屑（试卷.paper 二次显示）→ 隐藏。 */
+.kt-navigation-container {
+  display: none !important;
+}
+
+/* opensumi-design-dark-theme 自带的紫粉渐变光晕背景（design-background-dark.png）
+   与 Trae 的纯黑风格不符 → 移除 background-image，让底色由主题色变量控制。 */
+[class*="box-panel___"] {
+  background-image: none !important;
+}
+
+/* Trae 风格纯色底：主色深灰黑，避免渐变高光。 */
+:root {
+  --zifu-bg-primary: #0f1114;
+  --zifu-bg-sidebar: #131519;
+  --zifu-bg-editor: #0f1114;
+}

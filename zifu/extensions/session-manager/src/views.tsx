@@ -45,10 +45,15 @@ const CSS = `
 .an-sm__search-icon { flex:0 0 auto; display:flex; color:var(--input-placeholderForeground); }
 .an-sm__search input { flex:1; min-width:0; border:none; outline:none; background:transparent; color:inherit; font:inherit; }
 .an-sm__search input::placeholder { color:var(--input-placeholderForeground); }
-.an-sm__new { display:flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:6px; cursor:pointer; font-weight:500; user-select:none; color:var(--foreground); background:var(--input-background); border:1px solid var(--input-border,transparent); }
+.an-sm__new { display:flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:6px; cursor:pointer; font-weight:500; user-select:none; color:var(--foreground); background:var(--input-background); border:1px solid var(--input-border,transparent); position:relative; }
 .an-sm__new:hover { background:var(--list-hoverBackground); }
 .an-sm__new:focus-visible { outline:1px solid var(--focusBorder); outline-offset:1px; }
 .an-sm__new-kbd { margin-left:auto; font-size:10px; color:var(--descriptionForeground); }
+.an-sm__collapse { position:absolute; right:10px; top:14px; width:22px; height:22px; border-radius:4px; display:flex; align-items:center; justify-content:center; color:var(--descriptionForeground); cursor:pointer; background:transparent; border:none; }
+.an-sm__collapse:hover { background:var(--list-hoverBackground); color:var(--foreground); }
+.an-sm.is-collapsed .an-sm__search, .an-sm.is-collapsed .an-sm__list, .an-sm.is-collapsed .an-sm__err { display:none; }
+.an-sm.is-collapsed .an-sm__top { padding-bottom:8px; border-bottom:none; margin-bottom:0; }
+.an-sm.is-collapsed .an-sm__new-label::after { content: ' · ' attr(data-count); color: var(--descriptionForeground); font-weight: 400; }
 .an-sm__err { margin:8px 10px 8px 10px; padding:8px 10px; border-radius:6px; font-size:12px; color:var(--inputValidation-errorForeground,var(--errorForeground)); background:var(--inputValidation-errorBackground,transparent); border:1px solid var(--inputValidation-errorBorder,currentColor); }
 .an-sm__err-retry { margin-left:8px; padding:2px 8px; border-radius:4px; cursor:pointer; user-select:none; color:var(--button-secondaryForeground); background:var(--button-secondaryBackground); border:1px solid var(--button-border,transparent); }
 .an-sm__err-retry:hover { background:var(--button-secondaryHoverBackground); }
@@ -162,6 +167,8 @@ const SessionManager = () => {
   const [keyword, setKeyword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // 折叠态：极简模式只露出"新对话"按钮和当前会话名，符合 Trae 侧栏视觉密度。
+  const [collapsed, setCollapsed] = useState(false);
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) {
@@ -227,6 +234,11 @@ const SessionManager = () => {
     // 初始加载: 立即拉取一次历史会话
     refresh();
 
+    // 扩展 activate 完毕时 zifu 主应用会派发该事件，视图收到后再拉一次，
+    // 避免首屏 render 时扩展 host 尚未 ready 导致的接口调用失败。
+    const onReady = () => refresh(true);
+    window.addEventListener('zifu:extensions-ready', onReady);
+
     (async () => {
       while (!cancelled) {
         try {
@@ -270,6 +282,7 @@ const SessionManager = () => {
     return () => {
       cancelled = true;
       clearInterval(timer);
+      window.removeEventListener('zifu:extensions-ready', onReady);
     };
   }, [refresh]);
 
@@ -323,16 +336,20 @@ const SessionManager = () => {
 
   return React.createElement(
     'div',
-    { className: 'an-sm' },
+    { className: 'an-sm' + (collapsed ? ' is-collapsed' : '') },
     React.createElement(
       'div',
       { className: 'an-sm__top' },
-      // 顶部: +新对话按钮 + 搜索框
+      // 顶部: +新对话按钮 + 搜索框 + 折叠按钮
       React.createElement(
         'div',
         { className: 'an-sm__new', onClick: onCreate, role: 'button', tabIndex: 0, title: '新对话 (⌘K)' },
         React.createElement(PlusIcon, null),
-        React.createElement('span', null, '新对话')
+        React.createElement(
+          'span',
+          { className: 'an-sm__new-label', 'data-count': collapsed ? String(sessions.length) : undefined },
+          '新对话'
+        )
       ),
       React.createElement(
         'div',
@@ -343,6 +360,21 @@ const SessionManager = () => {
           value: keyword,
           onChange: (e: any) => setKeyword(e.target.value),
         })
+      ),
+      React.createElement(
+        'button',
+        { className: 'an-sm__collapse', title: collapsed ? '展开会话列表' : '折叠会话列表', onClick: () => setCollapsed((v) => !v) },
+        React.createElement(
+          'svg',
+          { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none' },
+          React.createElement('path', {
+            d: collapsed ? 'M4 6l4 4 4-4' : 'M4 10l4-4 4 4',
+            stroke: 'currentColor',
+            strokeWidth: 1.4,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+          })
+        )
       )
     ),
     error

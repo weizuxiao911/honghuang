@@ -13,7 +13,7 @@ const client = createOpencodeClient({
 });
 
 const CSS = `
-.an-cw { display:flex; flex-direction:column; height:100%; font-size:14px; color:var(--sideBar-foreground,var(--foreground)); background:transparent; position:relative; }
+.an-cw { display:flex; flex-direction:column; height:100%; width:100%; box-sizing:border-box; font-size:14px; color:var(--sideBar-foreground,var(--foreground)); background:transparent; position:relative; overflow:hidden; }
 .an-cw__assistant { display:flex; align-items:center; gap:10px; padding:16px 20px 4px; flex-shrink:0; }
 .an-cw__assistant-avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #8b5cf6, #6366f1); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; font-weight:600; flex-shrink:0; }
 .an-cw__assistant-info { flex:1; min-width:0; }
@@ -124,11 +124,19 @@ const ChatWindow = () => {
     const onStorage = (e) => {
       if (e.key === ACTIVE_SESSION_KEY) setSessionID(e.newValue || '');
     };
+    // 扩展 activate 完毕，主应用会派发 zifu:extensions-ready；
+    // 视图收到后重新拉一次当前 session 的消息，保证首屏渲染晚于扩展 host 就绪。
+    const onReady = () => {
+      const cur = sessionIDRef.current;
+      if (cur) loadMessages(cur);
+    };
     window.addEventListener('zifu:session-changed', onChange);
     window.addEventListener('storage', onStorage);
+    window.addEventListener('zifu:extensions-ready', onReady);
     return () => {
       window.removeEventListener('zifu:session-changed', onChange);
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener('zifu:extensions-ready', onReady);
     };
   }, []);
 
@@ -287,8 +295,7 @@ const ChatWindow = () => {
         React.createElement('div', { className: 'an-cw__assistant-name' }, sessionTitle || '洪荒 Agent'),
         React.createElement('div', { className: 'an-cw__assistant-desc' }, introText)
       ),
-      React.createElement('button', { className: 'an-cw__assistant-edit', title: '新对话', onClick: () => {
-        // 通知 session-manager 创建
+      React.createElement('button', { className: 'an-cw__assistant-edit', title: '新对话', onClick: async () => {
         const r = await fetch(`${OPENCODE_BASE_URL}/session`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
         });
@@ -317,7 +324,7 @@ const ChatWindow = () => {
               .filter(Boolean);
             if (visibleParts.length === 0 && role !== 'assistant' && !errMsg) return null;
             return React.createElement('div', { key: r.info.id, className: 'an-cw__msg is-' + role },
-              React.createElement('span', { className: 'an-cw__msg-role' }, role === 'user' ? '你' : '洪荒 Agent'),
+              React.createElement('span', { className: 'an-cw__msg-role' }, role === 'user' ? '你' : 'Assistant'),
               ...visibleParts,
               errMsg ? React.createElement('div', { className: 'an-cw__bubble an-cw__bubble--err' }, errMsg) : null,
               role === 'assistant' && visibleParts.length === 0

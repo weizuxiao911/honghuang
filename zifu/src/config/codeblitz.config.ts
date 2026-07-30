@@ -2,6 +2,7 @@ import type { IAppRendererProps } from '@codeblitzjs/ide-core';
 import { BrowserFSFileType as FileType } from '@codeblitzjs/ide-core';
 import { SlotLocation } from '@opensumi/ide-core-browser';
 
+import { WelcomePage } from '../components/WelcomePage';
 import { OpencodeFileClient, OpencodeFileEntry } from '../services/opencode';
 import { LayoutComponent } from './layout';
 
@@ -29,25 +30,39 @@ export const appConfig: IAppRendererProps['appConfig'] = {
   layoutConfig: {
     [SlotLocation.top]: { modules: [] },
     [SlotLocation.action]: { modules: [] },
-    [SlotLocation.left]: { modules: [] },
+    [SlotLocation.left]: {
+      modules: [
+        '@opensumi/ide-explorer',
+        '@opensumi/ide-search',
+        '@opensumi/ide-scm',
+        '@opensumi/ide-debug',
+      ],
+    },
     [SlotLocation.right]: { modules: [] },
-    [SlotLocation.main]: { modules: [] },
-    [SlotLocation.bottom]: { modules: [] },
-    [SlotLocation.statusBar]: { modules: [] },
+    [SlotLocation.main]: { modules: ['@opensumi/ide-editor'] },
+    [SlotLocation.bottom]: { modules: ['@opensumi/ide-output', '@opensumi/ide-markers'] },
+    [SlotLocation.statusBar]: { modules: ['@opensumi/ide-status-bar'] },
     [SlotLocation.extra]: { modules: [] },
   } as any,
   defaultPreferences: {
     'general.theme': 'opensumi-design-dark-theme',
     'editor.autoSave': 'afterDelay',
     'editor.autoSaveDelay': 1000,
-    'window.menuBarVisibility': 'toggle',
-    'window.customTitleBarVisibility': 'never',
-    'workbench.statusBar.visible': false,
     'workbench.startupEditor': 'none',
+    'breadcrumbs.enabled': false,
   },
-};
+  defaultPanels: {
+    left: '@opensumi/ide-explorer',
+    bottom: '',
+    right: '',
+  },
+} as any;
 
 export const runtimeConfig: IAppRendererProps['runtimeConfig'] = {
+  // startupEditor: 'welcomePage' 保证首屏在 editor 区打开一个欢迎 tab；
+  // WelcomePage 覆盖 CodeBlitz 默认的 Codeblitz 品牌页为洪荒自制欢迎页。
+  startupEditor: 'welcomePage',
+  WelcomePage: WelcomePage as any,
   workspace: {
     filesystem: {
       fs: 'OverlayFS',
