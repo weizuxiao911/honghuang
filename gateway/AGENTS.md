@@ -1,4 +1,4 @@
-# taixu（太虚）AI 协作规则
+# gateway（调度平面） AI 协作规则
 
 > 本目录的 AI 工作约束。`README.md` 描述是什么；本文件约束怎么做。
 
@@ -17,9 +17,9 @@
 
 ## 与其它模块的契约
 
-- **对 zifu（上游）**：暴露平台域接口与子域名运行实例路由入口；Header 中透明透传用户/租户身份。
-- **对 dongfu（下游）**：通过 K8s API 创建并销毁 Pod；按需注入 opencode.json / VSIX 名单 / 环境变量；SSE 反向代理至前端。
-- **对 langhuan（旁路）**：按需拉取可下发的 VSIX 名单，用于注入 dongfu 配置。**不**直接代理 langhuan 的下载接口。
+- **对 app（上游）**：暴露平台域接口与子域名运行实例路由入口；Header 中透明透传用户/租户身份。
+- **对 agent-image（下游）**：通过 K8s API 创建并销毁 Pod；按需注入 opencode.json / VSIX 名单 / 环境变量；SSE 反向代理至前端。
+- **对 registry（旁路）**：按需拉取可下发的 VSIX 名单，用于注入 agent-image 配置。**不**直接代理 registry 的下载接口。
 
 ## 关键约束
 

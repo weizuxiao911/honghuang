@@ -22,7 +22,7 @@
 
 /* Trae 风格纯色底：主色深灰黑，避免渐变高光。 */
 :root {
-  --zifu-bg-primary: #0f1114;
-  --zifu-bg-sidebar: #131519;
-  --zifu-bg-editor: #0f1114;
+  --app-bg-primary: #0f1114;
+  --app-bg-sidebar: #131519;
+  --app-bg-editor: #0f1114;
 }

@@ -1,14 +1,16 @@
 {
-  "name": "honghuang-zifu",
+  "name": "taichu-app",
   "version": "0.1.0",
   "private": true,
-  "description": "洪荒紫府前端容器：CodeBlitz 纯前端 IDE 骨架（零业务），业务全部由 VSIX 承载",
+  "description": "Taichu app 前端容器：CodeBlitz 纯前端 IDE 骨架（零业务），业务全部由 VSIX 承载",
   "scripts": {
     "dev": "webpack serve --config webpack.config.js",
-    "build": "cross-env NODE_ENV=production webpack --config webpack.config.js"
+    "build": "cross-env NODE_ENV=production webpack --config webpack.config.js",
+    "serve": "node --experimental-strip-types server.ts"
   },
   "dependencies": {
     "@codeblitzjs/ide-core": "2.4.6",
+    "express": "^4.22.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

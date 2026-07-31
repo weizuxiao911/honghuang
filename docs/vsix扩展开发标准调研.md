@@ -3,7 +3,7 @@
 > 状态：**事实调研完成**（VSCode 官方文档 + OpenSumi 官方文档 + `@codeblitzjs/ide-*` 2.4.6 源码 + 实测）
 > 目标：厘清在 AgentNest（CodeBlitz 纯前端容器）中，一个自研 vsix 扩展的**开发标准**——目录结构、manifest、入口、贡献点、激活、打包。
 > 原则：**以实测/源码/官方文档为准，不臆断**。推测项明确标注「待验证」。
-> 关联：《opensumi-opencode前后端分离调研.md》§3.5、《poc/agent-extensions》。
+> 关联：《opensumi-opencode前后端分离调研.md》§3.5、《自定义 VSIX 扩展已验证》。
 
 ---
 
@@ -35,7 +35,7 @@
 
 **三入口全部可选**：只要 VSCode 能力就只写 `extension.ts`；只要某一类 OpenSumi 能力就只写对应入口。
 
-> AgentNest 实践（`poc/agent-extensions/session-manager`）：纯前端容器无 Node，采用 **`extension.ts`（worker 逻辑）+ `views.tsx`（browser 视图）** 双入口，esbuild 分别打包为 `out/extension.js` / `out/views.js`。入口文件名沿用 VSCode 惯例 `extension.ts`。
+> AgentNest 实践（《自定义 VSIX 扩展已验证》中 session-manager）：纯前端容器无 Node，采用 **`extension.ts`（worker 逻辑）+ `views.tsx`（browser 视图）** 双入口，esbuild 分别打包为 `out/extension.js` / `out/views.js`。入口文件名沿用 VSCode 惯例 `extension.ts`。
 
 ---
 

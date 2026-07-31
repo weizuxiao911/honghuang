@@ -1,16 +1,31 @@
-const React = require('React');
+// 通过 window 全局读取 host 端 (app/index.tsx) 注入的 React + ReactDOM，
+// 避免 CodeBlitz requireInterceptor 对 'react' 返回 undefined 导致 hooks 报 null。
+const React = (window as any).React;
 const { useState, useEffect, useRef, useCallback } = React;
 
 import { createOpencodeClient } from '@opencode-ai/sdk/v2/client';
 
-const OPENCODE_BASE_URL = 'http://df-dev.localhost';
-const ACTIVE_SESSION_KEY = 'zifu.activeSessionId';
+function getBaseUrl(): string {
+  const cfg = (window as any).__TAICHU_RUNTIME__;
+  if (!cfg?.baseUrl) {
+    throw new Error('[Taichu] runtime baseUrl not resolved; ensure app has bootstrapped gateway');
+  }
+  return cfg.baseUrl;
+}
+const ACTIVE_SESSION_KEY = 'taichu.activeSessionId';
 
-const client = createOpencodeClient({
-  baseUrl: OPENCODE_BASE_URL,
-  responseStyle: 'fields',
-  throwOnError: true,
-});
+// opencode SDK client 延迟初始化（首次调用时 runtime baseUrl 已注入）
+let _client: ReturnType<typeof createOpencodeClient> | null = null;
+function getClient() {
+  if (!_client) {
+    _client = createOpencodeClient({
+      baseUrl: getBaseUrl(),
+      responseStyle: 'fields',
+      throwOnError: true,
+    });
+  }
+  return _client;
+}
 
 const CSS = `
 .an-cw { display:flex; flex-direction:column; height:100%; width:100%; box-sizing:border-box; font-size:14px; color:var(--sideBar-foreground,var(--foreground)); background:transparent; position:relative; overflow:hidden; }
@@ -71,9 +86,9 @@ const CSS = `
 
 function useInjectStyle() {
   useEffect(() => {
-    if (document.getElementById('zifu-chat-window-style')) return;
+    if (document.getElementById('app-chat-window-style')) return;
     const el = document.createElement('style');
-    el.id = 'zifu-chat-window-style';
+    el.id = 'app-chat-window-style';
     el.textContent = CSS;
     document.head.appendChild(el);
   }, []);
@@ -108,7 +123,7 @@ const ChatWindow = () => {
     if (!sessionID) { setSessionTitle(''); return; }
     (async () => {
       try {
-        const r = await fetch(`${OPENCODE_BASE_URL}/session/${sessionID}`, { headers: { Accept: 'application/json' } });
+        const r = await fetch(`${getBaseUrl()}/session/${sessionID}`, { headers: { Accept: 'application/json' } });
         if (cancelled) return;
         if (r.ok) {
           const d = await r.json();
@@ -124,26 +139,26 @@ const ChatWindow = () => {
     const onStorage = (e) => {
       if (e.key === ACTIVE_SESSION_KEY) setSessionID(e.newValue || '');
     };
-    // 扩展 activate 完毕，主应用会派发 zifu:extensions-ready；
+    // 扩展 activate 完毕，主应用会派发 app:extensions-ready；
     // 视图收到后重新拉一次当前 session 的消息，保证首屏渲染晚于扩展 host 就绪。
     const onReady = () => {
       const cur = sessionIDRef.current;
       if (cur) loadMessages(cur);
     };
-    window.addEventListener('zifu:session-changed', onChange);
+    window.addEventListener('app:session-changed', onChange);
     window.addEventListener('storage', onStorage);
-    window.addEventListener('zifu:extensions-ready', onReady);
+    window.addEventListener('app:extensions-ready', onReady);
     return () => {
-      window.removeEventListener('zifu:session-changed', onChange);
+      window.removeEventListener('app:session-changed', onChange);
       window.removeEventListener('storage', onStorage);
-      window.removeEventListener('zifu:extensions-ready', onReady);
+      window.removeEventListener('app:extensions-ready', onReady);
     };
   }, []);
 
   const loadMessages = useCallback(async (id) => {
     if (!id) { setRows([]); return; }
     try {
-      const { data } = await client.session.messages({ sessionID: id, limit: 200 });
+      const { data } = await getClient().session.messages({ sessionID: id, limit: 200 });
       const list = (data || []).slice().sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
       setRows(list);
       setError('');
@@ -166,7 +181,7 @@ const ChatWindow = () => {
     (async () => {
       while (!cancelled) {
         try {
-          const result = await client.global.event();
+          const result = await getClient().global.event();
           setLive(true);
           attempt = 0;
           stream = result.stream;
@@ -249,7 +264,7 @@ const ChatWindow = () => {
     try {
       let sid = sessionID;
       if (!sid) {
-        const r = await fetch(`${OPENCODE_BASE_URL}/session`, {
+        const r = await fetch(`${getBaseUrl()}/session`, {
           method: 'POST',
           headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
@@ -259,9 +274,9 @@ const ChatWindow = () => {
         sid = s.id;
         setSessionID(sid);
         try { localStorage.setItem(ACTIVE_SESSION_KEY, sid); } catch {}
-        window.dispatchEvent(new CustomEvent('zifu:session-changed', { detail: { id: sid } }));
+        window.dispatchEvent(new CustomEvent('app:session-changed', { detail: { id: sid } }));
       }
-      await client.session.promptAsync({
+      await getClient().session.promptAsync({
         sessionID: sid,
         model: { providerID: 'opencode', modelID: model },
         parts: [{ type: 'text', text }],
@@ -275,7 +290,7 @@ const ChatWindow = () => {
 
   const onAbort = useCallback(async () => {
     if (!sessionID) return;
-    try { await client.session.abort({ sessionID }); } catch (e) { setError(String(e?.message || e)); }
+    try { await getClient().session.abort({ sessionID }); } catch (e) { setError(String(e?.message || e)); }
   }, [sessionID]);
 
   const onKeyDown = useCallback((e) => {
@@ -292,16 +307,16 @@ const ChatWindow = () => {
     React.createElement('div', { className: 'an-cw__assistant' },
       React.createElement('div', { className: 'an-cw__assistant-avatar' }, 'A'),
       React.createElement('div', { className: 'an-cw__assistant-info' },
-        React.createElement('div', { className: 'an-cw__assistant-name' }, sessionTitle || '洪荒 Agent'),
+        React.createElement('div', { className: 'an-cw__assistant-name' }, sessionTitle || 'Taichu Agent'),
         React.createElement('div', { className: 'an-cw__assistant-desc' }, introText)
       ),
       React.createElement('button', { className: 'an-cw__assistant-edit', title: '新对话', onClick: async () => {
-        const r = await fetch(`${OPENCODE_BASE_URL}/session`, {
+        const r = await fetch(`${getBaseUrl()}/session`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
         });
         if (r.ok) {
           const s = await r.json();
-          window.dispatchEvent(new CustomEvent('zifu:session-changed', { detail: { id: s.id } }));
+          window.dispatchEvent(new CustomEvent('app:session-changed', { detail: { id: s.id } }));
         }
       } }, '✎')
     ),
@@ -459,4 +474,4 @@ function useAutoScroll(dep) {
   return ref;
 }
 
-exports['zifu.chatWindow'] = ChatWindow;
+exports['chatWindow'] = ChatWindow;

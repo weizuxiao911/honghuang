@@ -1,15 +1,14 @@
 import React from 'react';
 
 /**
- * 洪荒欢迎页
+ * Taichu欢迎页
  * 覆盖 CodeBlitz 默认 editor-empty 组件（Codeblitz logo + slogan）。
- * 抄 Trae 风格：纯深色底，中心 logo + 标语 + 快捷键卡片，无背景光晕。
  */
 export const WelcomePage: React.FC = () => {
   return (
-    <div className="zifu-welcome">
+    <div className="app-welcome">
       <style>{`
-        .zifu-welcome {
+        .app-welcome {
           width: 100%;
           height: 100%;
           display: flex;
@@ -20,14 +19,14 @@ export const WelcomePage: React.FC = () => {
           color: var(--foreground);
           user-select: none;
         }
-        .zifu-welcome__brand {
+        .app-welcome__brand {
           display: flex;
           flex-direction: column;
           align-items: center;
           gap: 12px;
           margin-bottom: 48px;
         }
-        .zifu-welcome__logo {
+        .app-welcome__logo {
           width: 56px;
           height: 56px;
           border-radius: 14px;
@@ -41,35 +40,35 @@ export const WelcomePage: React.FC = () => {
           letter-spacing: -0.02em;
           box-shadow: 0 8px 24px rgba(99, 102, 241, 0.28);
         }
-        .zifu-welcome__title {
+        .app-welcome__title {
           font-size: 28px;
           font-weight: 500;
           letter-spacing: 0.02em;
           color: var(--foreground);
         }
-        .zifu-welcome__subtitle {
+        .app-welcome__subtitle {
           font-size: 13px;
           color: var(--descriptionForeground);
           line-height: 1.6;
         }
-        .zifu-welcome__hints {
+        .app-welcome__hints {
           display: flex;
           gap: 24px;
           margin-top: 8px;
         }
-        .zifu-welcome__hint {
+        .app-welcome__hint {
           display: flex;
           align-items: center;
           gap: 8px;
           font-size: 13px;
           color: var(--descriptionForeground);
         }
-        .zifu-welcome__kbd {
+        .app-welcome__kbd {
           display: inline-flex;
           align-items: center;
           gap: 4px;
         }
-        .zifu-welcome__kbd kbd {
+        .app-welcome__kbd kbd {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -84,22 +83,22 @@ export const WelcomePage: React.FC = () => {
           color: var(--foreground);
         }
       `}</style>
-      <div className="zifu-welcome__brand">
-        <div className="zifu-welcome__logo">洪</div>
-        <div className="zifu-welcome__title">洪荒</div>
-        <div className="zifu-welcome__subtitle">开箱即用通用 Agent 产品基座</div>
+      <div className="app-welcome__brand">
+        <div className="app-welcome__logo">T</div>
+        <div className="app-welcome__title">Taichu</div>
+        <div className="app-welcome__subtitle">开箱即用通用 Agent 产品基座</div>
       </div>
-      <div className="zifu-welcome__hints">
-        <div className="zifu-welcome__hint">
+      <div className="app-welcome__hints">
+        <div className="app-welcome__hint">
           <span>与 AI 对话</span>
-          <span className="zifu-welcome__kbd">
+          <span className="app-welcome__kbd">
             <kbd>⌘</kbd>
             <kbd>U</kbd>
           </span>
         </div>
-        <div className="zifu-welcome__hint">
+        <div className="app-welcome__hint">
           <span>Editor 内 AI 编码</span>
-          <span className="zifu-welcome__kbd">
+          <span className="app-welcome__kbd">
             <kbd>⌘</kbd>
             <kbd>I</kbd>
           </span>

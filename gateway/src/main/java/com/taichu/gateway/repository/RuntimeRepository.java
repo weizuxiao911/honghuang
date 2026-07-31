@@ -1,6 +1,6 @@
-package com.honghuang.taixu.repository;
+package com.taichu.gateway.repository;
 
-import com.honghuang.taixu.model.RuntimeSnapshot;
+import com.taichu.gateway.model.RuntimeSnapshot;
 import reactor.core.publisher.Mono;
 
 import java.util.Optional;

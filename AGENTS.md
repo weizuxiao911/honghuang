@@ -1,10 +1,10 @@
 # AGENTS.md
 
-> 给 AI 看的洪荒（Honghuang）项目协作规则。
+> 给 AI 看的 Taichu（太初）项目协作规则。
 
 ## 项目定位
 
-洪荒：开箱即用通用 Agent 产品基座。**胶水哲学**为核心思想——平台不重复造底层基础设施、不固化业务功能，仅作为标准化连接层。
+Taichu（太初）：开箱即用通用 Agent 产品基座。**胶水哲学**为核心思想——平台不重复造底层基础设施、不固化业务功能，仅作为标准化连接层。
 
 完整产品蓝图见 [`./设计文档.md`](./设计文档.md)（**唯一事实源**）。
 
@@ -15,26 +15,26 @@
 3. **跨模块只通过约定接口**。禁止模块间直接导入代码。
 4. **配置外置**。OpenSumi / K8s / VSIX / opencode.json 等配置抽成独立文件，不散落代码里。
 5. **TS / ESM 优先**（前端与 Node 侧脚本）。Java 工程遵循 Spring Boot / Cloud 既有约定。
-6. **过程产物统一 `.cache/`**。临时截图、playwright 快照、采样日志、probe 输出均放 `honghuang/.cache/`。
+6. **过程产物统一 `.cache/`**。临时截图、playwright 快照、采样日志、probe 输出均放 `taichu/.cache/`。
 7. **敏感信息不入库**。凭证、API Key、Token 不入库；运行时数据目录已 gitignore。
 8. **中文优先**。文档、接口说明、用户可见文案以中文为主。
-9. **命名规范**。模块一级目录固定为 `zifu/` / `langhuan/` / `taixu/` / `dongfu/`。
+9. **命名规范**。本仓库统一命名为 Taichu（太初；一级目录 `taichu/`）；模块一级目录固定为 `app/` / `registry/` / `gateway/` / `agent-image/`。`紫府/琅嬛/太虚/洞府` 与 `zifu/langhuan/taixu/dongfu` 等旧命名不再出现于正式文档、配置、代码注释与提交信息。
 10. **全局一致性**。设计文档 / README / AGENTS / 四模块 README&AGENTS 任一改动后，核对其余部分同步。
 
 ## 四模块边界速查
 
 | 模块 | 做 | 不做 |
 |------|----|------|
-| **zifu**（紫府） | 布局骨架、窗口生命周期、插件宿主、通信总线、SSE 接收 | 业务逻辑、Agent 推理、直接文件读写 |
-| **langhuan**（琅嬛） | VSIX 元数据、版本、灰度、CDN 分发、RBAC 裁剪 | Agent 任务执行、K8s 调度、运行时业务 |
-| **taixu**（太虚） | 网关转发、K8s Pod 生命周期、Redis 双索引、TTL 回收、SSE 反代 | 前端渲染、A2UI 协议解析、插件资产存储 |
-| **dongfu**（洞府） | Agent 推理、工具调用、MCP 反向调用、A2UI 输出 | 调度决策、插件分发、UI 渲染 |
+| **app** | 布局骨架、窗口生命周期、插件宿主、通信总线、SSE 接收 | 业务逻辑、Agent 推理、直接文件读写 |
+| **registry** | VSIX 元数据、版本、灰度、CDN 分发、RBAC 裁剪 | Agent 任务执行、K8s 调度、运行时业务 |
+| **gateway** | 网关转发、K8s Pod 生命周期、Redis 双索引、TTL 回收、SSE 反代 | 前端渲染、A2UI 协议解析、插件资产存储 |
+| **agent-image** | Agent 推理、工具调用、MCP 反向调用、A2UI 输出 | 调度决策、插件分发、UI 渲染 |
 
-## 调研产物处理
+## 参考资料
 
-- `docs/`、`docs/README.md`：前期调研文档集。**只读参考**，不修改、不删除。
-- `.poc/`、`.poc/README.md`：前期可运行验证。**只读参考**，不修改、不删除。
-- 调研结论由 AI 在会话中自行消化，不必写进正式工程文档。
+- `docs/`、`docs/README.md`：保留前期对底层开源组件的实测文档集。**只读参考**，不修改、不删除。
+- `docs/` 的实测结论由 AI 在会话中自行消化，不必写进正式工程文档。
+- 正式工程文档（README/AGENTS/设计文档/子模块 README/AGENTS）**不得**再以任何路径、链接、注释、命令示例形式引用 `.poc/` 或 `poc-*` 等运行产物。`.poc/` 整目录已从入库中移除，仅作本地保留。
 
 ## K8s 本地测试规则（docker-desktop）
 
@@ -49,7 +49,7 @@
 
 ### Host 约定
 
-- Ingress 资源必须显式声明 `host`（如 `df-dev.localhost`）。
+- Ingress 资源必须显式声明 `host`（如 `gateway.taichu.localhost` / `*.runtime.taichu.localhost`）。
 - docker-desktop 上 `*.localhost` 子域名会自动解析到 127.0.0.1，**不**需要修改 `/etc/hosts`。
 - curl 验证时必须带 `-H "Host: <host>"`，否则命中 ingress-nginx-controller 默认后端（实测返回 404 或其它应用占位）。
 
@@ -68,7 +68,7 @@
 
 ## 任务执行
 
-按根目录 [`../AGENTS.md`](../AGENTS.md) 的「核心决策规则」与「标准工作流程」执行。本项目的特殊约束已在「铁律」「四模块边界速查」「调研产物处理」中说明。
+按根目录 [`../AGENTS.md`](../AGENTS.md) 的「核心决策规则」与「标准工作流程」执行。本项目的特殊约束已在「铁律」「四模块边界速查」「参考资料」中说明。
 
 ## 文档职责分层
 
@@ -77,7 +77,6 @@
 - `设计文档.md`：产品蓝图（唯一事实源）。
 - 各模块 `README.md` / `AGENTS.md`：模块自身的人/AI 文档。
 - `docs/README.md`：调研文档集导读。
-- `.poc/README.md`：调研验证导读。
 
 ## 一致性核验
 
@@ -87,4 +86,4 @@
 2. 与本文件「铁律」「四模块边界速查」一致。
 3. 与 `README.md` 模块结构表一致。
 4. 与涉及到的其它模块的 `README.md` / `AGENTS.md` 一致。
-5. 调研产物（`docs/`、`.poc/`）未被误改。
+5. 参考资料（`docs/`）未被误改；正式文档中不再出现旧命名（`zifu/langhuan/taixu/dongfu` 与中文别名）或 `.poc/` 路径。

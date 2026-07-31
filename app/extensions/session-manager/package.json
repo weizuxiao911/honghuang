@@ -1,9 +1,9 @@
 {
-  "name": "zifu-session-manager",
-  "displayName": "洪荒会话管理",
-  "description": "洪荒紫府左侧会话管理面板：列出 / 新建 / 切换 opencode 会话",
+  "name": "taichu-session-manager",
+  "displayName": "Taichu 会话管理",
+  "description": "Taichu 左侧会话管理面板：列出 / 新建 / 切换 opencode 会话",
   "version": "0.1.0",
-  "publisher": "honghuang",
+  "publisher": "taichu",
   "engines": {
     "vscode": "^1.60.0",
     "kaitian": "*",
@@ -16,14 +16,14 @@
   "contributes": {
     "commands": [
       {
-        "command": "zifu.session.refresh",
+        "command": "taichu.session.refresh",
         "title": "刷新会话列表",
-        "category": "洪荒"
+        "category": "Taichu"
       },
       {
-        "command": "zifu.session.create",
+        "command": "taichu.session.create",
         "title": "新建会话",
-        "category": "洪荒"
+        "category": "Taichu"
       }
     ]
   },
@@ -35,9 +35,9 @@
         "type": "add",
         "view": [
           {
-            "id": "zifu.sessionManager",
+            "id": "sessionManager",
             "icon": "add-comments",
-            "title": "洪荒会话"
+            "title": "Taichu 会话"
           }
         ]
       }

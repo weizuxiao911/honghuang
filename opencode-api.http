@@ -1,16 +1,17 @@
-### dongfu（洞府）K8s 部署验收测试
+### agent-image（agent-image）K8s 部署验收测试
 ###
-### 唯一事实源: ./设计文档.md 第四章「dongfu（洞府）」
+### 唯一事实源: ./设计文档.md 第四章「agent-image（agent-image）」
 ###
 ### 用法：VS Code REST Client（humao.rest-client）逐条 Send Request
 ### 前置条件：
 ###   1. docker-desktop K8s 已启动
-###   2. kubectl apply -f dongfu/k8s/dev.yaml
-###   3. kubectl wait --for=condition=ready pod -l app=dongfu -n honghuang-dongfu
+###   2. kubectl apply -f agent-image/k8s/dev.yaml
+###   3. kubectl wait --for=condition=ready pod -l app=agent-image -n taichu-agent-image
 ###
-### 访问路径：Ingress(df-dev.localhost) -> Service(80) -> Pod(4096)
-###   本地通过 ingress-nginx-controller 暴露在 http://localhost/(docker-desktop 默认)
-###   完整 URL: http://df-dev.localhost/global/health
+### 访问路径：gateway -> Sandbox Pod -> agent-image
+###   gateway 调度在 taichu-runtime ns 创建用户专属 Pod,
+###   sandbox 子域名经 runtime-ingress (*.runtime.taichu.localhost) 反代到 Pod.
+###   @runtimeHost 变量为具体 runtimeId（如 rt-<userId>-<suffix>）。
 ###
 ### 验收项：
 ###   1. K8s 部署可达性（Ingress + 健康）
@@ -20,7 +21,8 @@
 ###   5. PTY 写文件通道（验证 PVC 落盘）
 ###   6. v2 API（生产推荐路由）
 
-@base = http://df-dev.localhost
+@runtimeHost = rt-<userId>-<suffix>.runtime.taichu.localhost
+@base = http://{{runtimeHost}}
 @sid =
 
 
@@ -28,7 +30,7 @@
 ## 1. K8s 部署可达性
 ############################################################
 
-### 1.1 外部通过 Ingress(df-dev.localhost) 访问 + 健康检查
+### 1.1 外部通过 runtime 子域名 Ingress 访问 + 健康检查
 # @name 健康检查
 GET {{base}}/global/health
 Accept: application/json
@@ -48,7 +50,7 @@ Accept: application/json
 
 
 ############################################################
-## 3. 会话核心 API（dongfu 主要能力）
+## 3. 会话核心 API（agent-image 主要能力）
 ############################################################
 
 ### 3.1 列出会话（初始应为空数组）
@@ -62,7 +64,7 @@ Accept: application/json
 Content-Type: application/json
 
 {
-  "title": "dongfu 验收测试"
+  "title": "agent-image 验收测试"
 }
 
 ### 3.3 获取会话详情（手动把创建返回的 id 填到上方 @sid）
@@ -95,7 +97,7 @@ Content-Type: application/json
 
 {
   "command": "/bin/bash",
-  "args": ["-c", "echo ACCEPTED_BY_DONGFU > /workspace/acceptance.txt && date >> /workspace/acceptance.txt && ls -la /workspace"],
+  "args": ["-c", "echo ACCEPTED_BY_AGENT > /workspace/acceptance.txt && date >> /workspace/acceptance.txt && ls -la /workspace"],
   "cwd": "/workspace"
 }
 
@@ -127,12 +129,12 @@ Accept: application/json
 Content-Type: application/json
 
 {
-  "title": "dongfu 验收 v2"
+  "title": "agent-image 验收 v2"
 }
 
 
 ############################################################
-## 7. 列出全部 agent（业务 Agent 由 taixu 注入，本镜像应仅含默认）
+## 7. 列出全部 agent（业务 Agent 由 gateway 注入，本镜像应仅含默认）
 ############################################################
 
 ### 7.1 列出 agent

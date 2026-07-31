@@ -11,13 +11,13 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.honghuang</groupId>
-    <artifactId>taixu</artifactId>
+    <groupId>com.taichu</groupId>
+    <artifactId>gateway</artifactId>
     <version>0.1.0</version>
     <packaging>jar</packaging>
 
-    <name>洪荒太虚</name>
-    <description>洪荒太虚调度平面：流量网关 + K8s 运行时编排中枢</description>
+    <name>洪荒gateway</name>
+    <description>洪荒gateway调度平面：流量网关 + K8s 运行时编排中枢</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

@@ -1,0 +1,121 @@
+---
+# registry ConfigMap: 监听端口与 vsix 目录
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: registry-config
+  namespace: taichu-infra
+  labels:
+    app: registry
+    module: taichu
+data:
+  PORT: "9000"
+---
+# registry Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: taichu-infra
+  labels:
+    app: registry
+    app.kubernetes.io/component: platform
+    app.kubernetes.io/part-of: taichu
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: registry
+  template:
+    metadata:
+      labels:
+        app: registry
+        app.kubernetes.io/component: platform
+    spec:
+      containers:
+        - name: registry
+          image: taichu/registry:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: registry-config
+          resources:
+            requests:
+              cpu: "100m"
+              memory: 128Mi
+            limits:
+              cpu: "500m"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /metadata.json
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /metadata.json
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+# registry Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: taichu-infra
+  labels:
+    app: registry
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: registry
+---
+# registry Ingress: registry.taichu.localhost -> registry Service (HTTPS backend)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry-ingress
+  namespace: taichu-infra
+  labels:
+    app.kubernetes.io/component: platform
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: registry.taichu.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: registry
+                port:
+                  number: 80

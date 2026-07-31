@@ -1,9 +1,9 @@
 {
-  "name": "honghuang-langhuan",
+  "name": "taichu-registry",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "洪荒琅嬛 vsix 统一管理与分发：扫描 vsix/ 目录，生成 metadata，HTTP 分发给 zifu 运行时集成",
+  "description": "Taichu registry vsix 统一管理与分发：扫描 vsix/ 目录，生成 metadata，HTTP 分发给 app 运行时集成",
   "scripts": {
     "build": "node --experimental-strip-types src/build.ts",
     "serve": "node --experimental-strip-types src/server.ts",

@@ -5,7 +5,7 @@ const log = (...args: unknown[]) => console.log('>>>[chat-window][extension]', .
 export function activate(context: vscode.ExtensionContext) {
   log('activate');
 
-  const cmd = vscode.commands.registerCommand('zifu.chat.reveal', async () => {
+  const cmd = vscode.commands.registerCommand('app.chat.reveal', async () => {
     try {
       await vscode.commands.executeCommand('main-layout.right-panel.show', 420);
     } catch (err) {

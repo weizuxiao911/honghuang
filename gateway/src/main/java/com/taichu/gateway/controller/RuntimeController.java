@@ -1,7 +1,7 @@
-package com.honghuang.taixu.controller;
+package com.taichu.gateway.controller;
 
-import com.honghuang.taixu.model.RuntimeSnapshot;
-import com.honghuang.taixu.service.RuntimeService;
+import com.taichu.gateway.model.RuntimeSnapshot;
+import com.taichu.gateway.service.RuntimeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 /**
- * 运行时 Master API, 按 设计文档.md 第三章「taixu（太虚）」.
+ * 运行时 Master API, 按 设计文档.md 第三章「gateway（gateway）」.
  * 设计文档第三章: 接收前端指令后动态创建用户独立 Pod.
  *
  * 路由:
@@ -19,7 +19,7 @@ import reactor.core.publisher.Mono;
  *   POST   /runtime/restart  重启 Runtime
  *
  * Header 约定 (全小写, 与 设计文档 第三章一致):
- *   x-user-id    用户 ID (taixu 网关注入, 不自行维护登录态)
+ *   x-user-id    用户 ID (gateway 网关注入, 不自行维护登录态)
  *   x-tenant-id  租户 ID (可选, 用于多租户隔离)
  */
 @RestController

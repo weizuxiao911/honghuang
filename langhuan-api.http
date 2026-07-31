@@ -1,9 +1,9 @@
-### langhuan（琅嬛）K8s 服务 API 验收
+### registry（registry）K8s 服务 API 验收
 ###
-### 唯一事实源: ./设计文档.md 第二章「langhuan（琅嬛）」
+### 唯一事实源: ./设计文档.md 第二章「registry（registry）」
 ###
 ### 用法：VS Code REST Client（humao.rest-client）逐条 Send Request
-### 前置条件：langhuan dev server 已启动（`cd langhuan && npm run serve`，默认 https://localhost:9000）
+### 前置条件：registry dev server 已启动（`cd registry && npm run serve`，默认 https://localhost:9000）
 ###  无自签证书时回退 http（仅 metadata.json 等非扩展资源可用）
 ###
 ### 验收项：
@@ -42,7 +42,7 @@ Accept: application/javascript
 
 
 ############################################################
-## 3. 跨域（zifu 前端 fetch metadata）
+## 3. 跨域（app 前端 fetch metadata）
 ############################################################
 
 ### 3.1 OPTIONS 预检
@@ -63,7 +63,7 @@ Access-Control-Request-Method: GET
 # - [ ] 3.1 OPTIONS 预检通过（CORS 头）
 #
 # 用法：
-#   1. cd langhuan && npm run serve   （启动分发服务）
-#   2. cd langhuan && npm run build   （生成 dist/，先有 vsix/ 投放）
+#   1. cd registry && npm run serve   （启动分发服务）
+#   2. cd registry && npm run build   （生成 dist/，先有 vsix/ 投放）
 #   3. 手动从 /metadata.json 返回的数组中取一条 id 填到上方 @id
 #   4. 逐条 Send Request

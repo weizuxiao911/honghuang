@@ -1,8 +1,14 @@
-const React = require('React');
+const React = (window as any).React;
 const { useState, useEffect, useCallback, useMemo } = React;
 
-const OPENCODE_BASE_URL = 'http://df-dev.localhost';
-const ACTIVE_SESSION_KEY = 'zifu.activeSessionId';
+function getBaseUrl(): string {
+  const cfg = (window as any).__TAICHU_RUNTIME__;
+  if (!cfg?.baseUrl) {
+    throw new Error('[Taichu] runtime baseUrl not resolved; ensure app has bootstrapped gateway');
+  }
+  return cfg.baseUrl;
+}
+const ACTIVE_SESSION_KEY = 'taichu.activeSessionId';
 const POLL_INTERVAL = 15000;
 
 interface Session {
@@ -13,13 +19,13 @@ interface Session {
 }
 
 async function listSessions(): Promise<Session[]> {
-  const res = await fetch(`${OPENCODE_BASE_URL}/session`, { headers: { Accept: 'application/json' } });
+  const res = await fetch(`${getBaseUrl()}/session`, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`GET /session ${res.status}`);
   return res.json();
 }
 
 async function createSession(): Promise<Session> {
-  const res = await fetch(`${OPENCODE_BASE_URL}/session`, {
+  const res = await fetch(`${getBaseUrl()}/session`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({}), // 不设 title, 由 opencode 自动从对话生成
@@ -29,14 +35,14 @@ async function createSession(): Promise<Session> {
 }
 
 async function deleteSession(id: string): Promise<void> {
-  const res = await fetch(`${OPENCODE_BASE_URL}/session/${id}`, {
+  const res = await fetch(`${getBaseUrl()}/session/${id}`, {
     method: 'DELETE',
     headers: { Accept: 'application/json' },
   });
   if (!res.ok) throw new Error(`DELETE /session/${id} ${res.status}`);
 }
 
-const STYLE_ID = 'zifu-session-manager-style';
+const STYLE_ID = 'app-session-manager-style';
 const CSS = `
 .an-sm { display:flex; flex-direction:column; height:100%; font-size:var(--font-size,13px); color:var(--sideBar-foreground,var(--foreground)); background:var(--sideBar-background); padding-top:8px; }
 .an-sm__top { padding:8px 10px 16px 10px; display:flex; flex-direction:column; gap:10px; border-bottom:1px solid var(--sideBar-border, transparent); margin-bottom:8px; }
@@ -192,7 +198,7 @@ const SessionManager = () => {
     try {
       localStorage.setItem(ACTIVE_SESSION_KEY, id);
     } catch {}
-    window.dispatchEvent(new CustomEvent('zifu:session-changed', { detail: { id } }));
+    window.dispatchEvent(new CustomEvent('app:session-changed', { detail: { id } }));
   }, []);
 
   const onCreate = useCallback(async () => {
@@ -234,15 +240,15 @@ const SessionManager = () => {
     // 初始加载: 立即拉取一次历史会话
     refresh();
 
-    // 扩展 activate 完毕时 zifu 主应用会派发该事件，视图收到后再拉一次，
+    // 扩展 activate 完毕时 app 主应用会派发该事件，视图收到后再拉一次，
     // 避免首屏 render 时扩展 host 尚未 ready 导致的接口调用失败。
     const onReady = () => refresh(true);
-    window.addEventListener('zifu:extensions-ready', onReady);
+    window.addEventListener('app:extensions-ready', onReady);
 
     (async () => {
       while (!cancelled) {
         try {
-          const res = await fetch(`${OPENCODE_BASE_URL}/global/event`, {
+          const res = await fetch(`${getBaseUrl()}/global/event`, {
             headers: { accept: 'text/event-stream' },
           });
           if (!res.body) continue;
@@ -282,7 +288,7 @@ const SessionManager = () => {
     return () => {
       cancelled = true;
       clearInterval(timer);
-      window.removeEventListener('zifu:extensions-ready', onReady);
+      window.removeEventListener('app:extensions-ready', onReady);
     };
   }, [refresh]);
 
@@ -408,4 +414,4 @@ const SessionManager = () => {
   );
 };
 
-exports['zifu.sessionManager'] = SessionManager;
+exports['sessionManager'] = SessionManager;

@@ -1,8 +1,8 @@
-package com.honghuang.taixu.middleware;
+package com.taichu.gateway.middleware;
 
-import com.honghuang.taixu.config.TaixuProperties;
-import com.honghuang.taixu.model.RuntimeSnapshot;
-import com.honghuang.taixu.repository.RuntimeRepository;
+import com.taichu.gateway.config.PlatformProperties;
+import com.taichu.gateway.model.RuntimeSnapshot;
+import com.taichu.gateway.repository.RuntimeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -19,15 +19,15 @@ import java.net.URI;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR;
 
 /**
- * 运行时路由过滤器, 按 设计文档.md 第三章「taixu（太虚）」> 双通道寻址规则.
+ * 运行时路由过滤器, 按 设计文档.md 第三章「gateway（gateway）」> 双通道寻址规则.
  *
  * 设计文档第三章:
  *   同源请求: 依靠 x-runtime-id Header 定位运行实例
  *   跨端跳转: 依靠子域名 Host 匹配路由
  *
  * 逻辑:
- *  1. /agent/* 路径 -> 解析 x-runtime-id Header -> 查 Redis -> 转发到对应 dongfu
- *  2. {runtimeId}.localhost/* 子域名 -> 查 Redis -> 转发到对应 dongfu
+ *  1. /agent/* 路径 -> 解析 x-runtime-id Header -> 查 Redis -> 转发到对应 agent-image
+ *  2. {runtimeId}.localhost/* 子域名 -> 查 Redis -> 转发到对应 agent-image
  *  3. 其它路径 (/runtime/*, /health) -> 透传至本地 master API
  */
 @Slf4j
@@ -36,11 +36,14 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
 public class RuntimeRoutingFilter implements GlobalFilter, Ordered {
 
     private final RuntimeRepository runtimeRepository;
-    private final TaixuProperties taixuProperties;
+    private final PlatformProperties gatewayProperties;
 
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE;
+        // 在 RouteToRequestUrlFilter (order=10000) 之后运行,
+        // 覆盖 GATEWAY_REQUEST_URL_ATTR 为动态 sandbox service FQDN,
+        // 再由 NettyRoutingFilter (order=2147483647) 真正代理.
+        return 15000;
     }
 
     @Override
@@ -65,7 +68,7 @@ public class RuntimeRoutingFilter implements GlobalFilter, Ordered {
         // 3. Agent API 路由: /agent/* -> 解析 x-runtime-id Header
         String runtimeIdFromHeader = request.getHeaders().getFirst("x-runtime-id");
         if (path.startsWith("/agent") && runtimeIdFromHeader != null) {
-            // 去掉 /agent 前缀, 转发到 dongfu 的 / 根路径
+            // 去掉 /agent 前缀, 转发到 agent-image 的 / 根路径
             String strippedPath = path.substring("/agent".length());
             if (!strippedPath.startsWith("/")) {
                 strippedPath = "/" + strippedPath;
@@ -94,7 +97,7 @@ public class RuntimeRoutingFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 按 runtimeId 查 Redis -> 转发到对应 dongfu.
+     * 按 runtimeId 查 Redis -> 转发到对应 agent-image.
      */
     private Mono<Void> routeToRuntime(ServerWebExchange exchange, GatewayFilterChain chain,
                                       String runtimeId, String host, String path) {

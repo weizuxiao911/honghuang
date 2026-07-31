@@ -1,7 +1,7 @@
-package com.honghuang.taixu.service;
+package com.taichu.gateway.service;
 
-import com.honghuang.taixu.config.TaixuProperties;
-import com.honghuang.taixu.model.RuntimeSnapshot;
+import com.taichu.gateway.config.PlatformProperties;
+import com.taichu.gateway.model.RuntimeSnapshot;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.ServiceAccount;
 import io.fabric8.kubernetes.api.model.ServiceAccountBuilder;
@@ -20,15 +20,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * K8s 运行时操作实现, 用 Fabric8 客户端管理 dongfu Pod 生命周期.
+ * K8s 运行时操作实现, 用 Fabric8 客户端管理 agent-image Pod 生命周期.
  *
  * 设计文档第三章:
  *   预置标准化 Deployment、Service、PVC、HPA 资源模板, 接收前端指令后动态创建用户独立 Pod.
  *
- * 设计文档第四章 (dongfu 契约):
+ * 设计文档第四章 (agent-image 契约):
  *   PVC 双 subPath 挂载: workspace + config/data
  *   环境变量注入: 用户身份 (x-user-id, x-tenant-id)
- *   镜像: dongfu:dev (或 taixu 注入的 image)
+ *   镜像: agent-image:dev (或 gateway 注入的 image)
  */
 @Slf4j
 @Component
@@ -36,7 +36,7 @@ import java.util.Map;
 public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
 
     private final KubernetesClient kubernetesClient;
-    private final TaixuProperties taixuProperties;
+    private final PlatformProperties gatewayProperties;
 
     @Override
     public Mono<RuntimeSnapshot> create(RuntimeSnapshot snapshot) {
@@ -69,15 +69,15 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
     }
 
     private RuntimeSnapshot doCreate(RuntimeSnapshot snapshot) {
-        String namespace = taixuProperties.getKubernetes().getNamespace();
+        String namespace = gatewayProperties.getKubernetes().getNamespace();
         String runtimeId = snapshot.getRuntimeId();
 
-        log.info("创建 Deployment: namespace={} runtimeId={} image={}", namespace, runtimeId, taixuProperties.getRuntime().getImage());
+        log.info("创建 Deployment: namespace={} runtimeId={} image={}", namespace, runtimeId, gatewayProperties.getRuntime().getImage());
 
         // 1. 创建 ServiceAccount (按用户隔离, RBAC 最小权限)
         ServiceAccount sa = new ServiceAccountBuilder()
                 .withNewMetadata()
-                .withName("taixu-" + runtimeId)
+                .withName("gateway-" + runtimeId)
                 .withNamespace(namespace)
                 .withLabels(labels(runtimeId))
                 .endMetadata()
@@ -94,8 +94,8 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
             }
         }
 
-        // 2. 创建 Deployment (按 设计文档 第四章 dongfu 契约)
-        TaixuProperties.Runtime runtime = taixuProperties.getRuntime();
+        // 2. 创建 Deployment (按 设计文档 第四章 agent-image 契约)
+        PlatformProperties.Runtime runtime = gatewayProperties.getRuntime();
         Deployment deployment = new DeploymentBuilder()
                 .withNewMetadata()
                 .withName(snapshot.getDeploymentName())
@@ -112,9 +112,9 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
                 .withLabels(labels(runtimeId))
                 .endMetadata()
                 .withNewSpec()
-                .withServiceAccountName("taixu-" + runtimeId)
+                .withServiceAccountName("gateway-" + runtimeId)
                 .addNewContainer()
-                .withName("dongfu")
+                .withName("agent-image")
                 .withImage(runtime.getImage())
                 .withImagePullPolicy(runtime.getImagePullPolicy())
                 .withPorts(java.util.Collections.singletonList(
@@ -125,12 +125,12 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
                 ))
                 .withNewResources()
                 .withRequests(Map.of(
-                        "cpu", io.fabric8.kubernetes.api.model.Quantity.parse(runtime.getResources().getCpuRequest()),
-                        "memory", io.fabric8.kubernetes.api.model.Quantity.parse(runtime.getResources().getMemoryRequest())
+                        "cpu", io.fabric8.kubernetes.api.model.Quantity.parse(runtime.getResources().getRequests().getCpu()),
+                        "memory", io.fabric8.kubernetes.api.model.Quantity.parse(runtime.getResources().getRequests().getMemory())
                 ))
                 .withLimits(Map.of(
-                        "cpu", io.fabric8.kubernetes.api.model.Quantity.parse(runtime.getResources().getCpuLimit()),
-                        "memory", io.fabric8.kubernetes.api.model.Quantity.parse(runtime.getResources().getMemoryLimit())
+                        "cpu", io.fabric8.kubernetes.api.model.Quantity.parse(runtime.getResources().getLimits().getCpu()),
+                        "memory", io.fabric8.kubernetes.api.model.Quantity.parse(runtime.getResources().getLimits().getMemory())
                 ))
                 .endResources()
                 .addNewEnv()
@@ -208,7 +208,7 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
     }
 
     private Boolean doDelete(RuntimeSnapshot snapshot) {
-        String namespace = taixuProperties.getKubernetes().getNamespace();
+        String namespace = gatewayProperties.getKubernetes().getNamespace();
         String deploymentName = snapshot.getDeploymentName();
         String serviceName = snapshot.getServiceName();
 
@@ -229,7 +229,7 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
     }
 
     private RuntimeSnapshot doRefresh(RuntimeSnapshot snapshot) {
-        String namespace = taixuProperties.getKubernetes().getNamespace();
+        String namespace = gatewayProperties.getKubernetes().getNamespace();
         String deploymentName = snapshot.getDeploymentName();
 
         try {
@@ -255,7 +255,7 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
 
     private Map<String, String> labels(String runtimeId) {
         Map<String, String> labels = new HashMap<>();
-        labels.put("app", "taixu");
+        labels.put("app", "gateway");
         labels.put("runtimeId", runtimeId);
         labels.put("tenantId", "default");
         return labels;

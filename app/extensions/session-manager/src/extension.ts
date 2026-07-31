@@ -6,13 +6,13 @@ export function activate(context: vscode.ExtensionContext) {
   log('activate');
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('zifu.session.refresh', () => {
+    vscode.commands.registerCommand('taichu.session.refresh', () => {
       log('command: refresh');
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('zifu.session.create', () => {
+    vscode.commands.registerCommand('taichu.session.create', () => {
       log('command: create');
     })
   );

@@ -1,8 +1,8 @@
-package com.honghuang.taixu.service;
+package com.taichu.gateway.service;
 
-import com.honghuang.taixu.config.TaixuProperties;
-import com.honghuang.taixu.model.RuntimeSnapshot;
-import com.honghuang.taixu.repository.RuntimeRepository;
+import com.taichu.gateway.config.PlatformProperties;
+import com.taichu.gateway.model.RuntimeSnapshot;
+import com.taichu.gateway.repository.RuntimeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,7 +22,7 @@ public class RuntimeService {
 
     private final RuntimeRepository runtimeRepository;
     private final K8sRuntimeOperator k8sRuntimeOperator;
-    private final TaixuProperties taixuProperties;
+    private final PlatformProperties gatewayProperties;
 
     /**
      * 创建运行时.
@@ -32,21 +32,21 @@ public class RuntimeService {
      */
     public Mono<RuntimeSnapshot> create(String userId) {
         String runtimeId = generateRuntimeId(userId);
-        String deploymentName = "taixu-" + runtimeId;
-        String serviceName = "taixu-" + runtimeId;
+        String deploymentName = "gateway-" + runtimeId;
+        String serviceName = "gateway-" + runtimeId;
         String internalUrl = buildInternalUrl(serviceName);
-        String agentApiBase = buildAgentApiBase();
+        String agentApiBase = buildAgentApiBase(runtimeId);
 
         RuntimeSnapshot snapshot = new RuntimeSnapshot();
         snapshot.setRuntimeId(runtimeId);
         snapshot.setUserId(userId);
         snapshot.setStatus("pending");
-        snapshot.setNamespace(taixuProperties.getKubernetes().getNamespace());
+        snapshot.setNamespace(gatewayProperties.getKubernetes().getNamespace());
         snapshot.setDeploymentName(deploymentName);
         snapshot.setServiceName(serviceName);
         snapshot.setInternalUrl(internalUrl);
         snapshot.setAgentApiBase(agentApiBase);
-        snapshot.setLeaseExpireAt(Instant.now().plusSeconds(taixuProperties.getRuntime().getTtl()));
+        snapshot.setLeaseExpireAt(Instant.now().plusSeconds(gatewayProperties.getRuntime().getTtl()));
         snapshot.setCreatedAt(Instant.now());
         snapshot.setUpdatedAt(Instant.now());
 
@@ -56,7 +56,7 @@ public class RuntimeService {
                 .flatMap(created -> {
                     created.setStatus("running");
                     created.setUpdatedAt(Instant.now());
-                    return runtimeRepository.save(created, taixuProperties.getRuntime().getTtl());
+                    return runtimeRepository.save(created, gatewayProperties.getRuntime().getTtl());
                 });
     }
 
@@ -92,7 +92,7 @@ public class RuntimeService {
     public Mono<RuntimeSnapshot> restart(String userId) {
         return findByUserId(userId)
                 .flatMap(snapshot -> k8sRuntimeOperator.restart(snapshot)
-                        .flatMap(restarted -> runtimeRepository.save(restarted, taixuProperties.getRuntime().getTtl())));
+                        .flatMap(restarted -> runtimeRepository.save(restarted, gatewayProperties.getRuntime().getTtl())));
     }
 
     private String generateRuntimeId(String userId) {
@@ -100,13 +100,14 @@ public class RuntimeService {
     }
 
     private String buildInternalUrl(String serviceName) {
-        String ns = taixuProperties.getKubernetes().getNamespace();
-        String dnsSuffix = taixuProperties.getKubernetes().getDnsSuffix();
-        return taixuProperties.getRuntime().getScheme() + "://" + serviceName + "." + ns + "." + dnsSuffix;
+        String ns = gatewayProperties.getKubernetes().getNamespace();
+        String dnsSuffix = gatewayProperties.getKubernetes().getDnsSuffix();
+        return gatewayProperties.getRuntime().getScheme() + "://" + serviceName + "." + ns + "." + dnsSuffix;
     }
 
-    private String buildAgentApiBase() {
-        return taixuProperties.getRuntime().getScheme() + "://" + taixuProperties.getRuntime().getGatewayHost() + taixuProperties.getRuntime().getAgentPrefix();
+    private String buildAgentApiBase(String runtimeId) {
+        PlatformProperties.Runtime r = gatewayProperties.getRuntime();
+        return r.getScheme() + "://" + runtimeId + "." + r.getRuntimeHostSuffix() + r.getAgentPrefix();
     }
 
     /**

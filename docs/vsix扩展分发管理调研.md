@@ -3,7 +3,7 @@
 > 状态：**事实调研完成 + 端到端跑通**（`@codeblitzjs/ide-*` 2.4.6 源码 + 浏览器实测：registry 分发 → 运行时集成 → 面板激活 → 直连 opencode）
 > 目标：厘清自研 vsix 在 CodeBlitz 纯前端容器中的**分发与集成链路**——metadata 生成、资源托管、运行时加载、版本与清单管理。
 > 原则：**以实测/源码为准，不臆断**。推测项明确标注「待验证」。
-> 关联：《vsix扩展开发标准调研.md》、《poc/extension-registry》、《poc/opensumi-web》。
+> 关联：《vsix扩展开发标准调研.md》、《VSIX 分发注册中心已验证》、《CodeBlitz 容器已本地跑通》。
 
 ---
 
@@ -65,7 +65,7 @@ kt-ext 默认 roots 为阿里云 CDN（`alipayobjects.com`），自建分发不�
 | 构建期 import | 脚本生成 `extensions.generated.ts`，容器 import | 快速验证 | POC 早期用过，已废弃 |
 | **运行时 fetch** | `<AppRenderer>` 挂载前 `fetch` 清单接口，`setState` 后传入 `extensionMetadata` | **生产** | ✅ 采用 |
 
-运行时方案（`poc/opensumi-web/src/App.tsx` 实测）：
+运行时方案（《CodeBlitz 容器已本地跑通》实测）：
 ```tsx
 const meta = await registryClient.fetchMetadata();  // GET registry /metadata.json
 <AppRenderer appConfig={{ ...appConfig, extensionMetadata: meta }} ... />

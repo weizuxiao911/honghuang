@@ -6,7 +6,7 @@
 
 ## 阅读顺序建议
 
-1. [`../设计文档.md`](../设计文档.md)：先读产品蓝图，建立四模块（zifu / langhuan / taixu / dongfu）与胶水哲学的整体认知。
+1. [`../设计文档.md`](../设计文档.md)：先读产品蓝图，建立四模块（app / registry / gateway / agent-image）与胶水哲学的整体认知。
 2. [`架构设计.md`](./架构设计.md)：早期 AgentNest 命名下的总体架构讨论、K8s 调度设计、关键技术权衡；技术结论可复用，命名差异忽略。
 3. 各专题调研（按需查阅）：
    - [`opencode-server-api调研.md`](./opencode-server-api调研.md)：opencode v1.18.8 真实 OpenAPI spec 188 端点实测（四大交互闭环端到端跑通）。
@@ -17,4 +17,4 @@
 
 ## 命名说明
 
-部分调研文档写作时项目工作名为 **AgentNest**，对应正式工程名为 **洪荒（Honghuang）**。两类命名在概念层指代同一项目，迁移到正式工程时按本目录的最终结论与四模块命名（zifu / langhuan / taixu / dongfu）执行。
+部分调研文档写作时项目工作名为 **AgentNest**，对应正式工程名为 **洪荒（Honghuang）**。两类命名在概念层指代同一项目，迁移到正式工程时按本目录的最终结论与四模块命名（app / registry / gateway / agent-image）执行。

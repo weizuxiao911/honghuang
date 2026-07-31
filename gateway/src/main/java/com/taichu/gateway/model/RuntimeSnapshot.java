@@ -1,11 +1,11 @@
-package com.honghuang.taixu.model;
+package com.taichu.gateway.model;
 
 import lombok.Data;
 
 import java.time.Instant;
 
 /**
- * Runtime 运行快照, 反映 dongfu Pod 当前状态.
+ * Runtime 运行快照, 反映 agent-image Pod 当前状态.
  * 按 设计文档.md 第三章: Redis 双索引存储 runtimeId ⇄ userId, TTL 自动过期.
  */
 @Data
@@ -27,27 +27,27 @@ public class RuntimeSnapshot {
     private String status;
 
     /**
-     * K8s 命名空间 (例: honghuang-runtime).
+     * K8s 命名空间 (例: taichu-runtime).
      */
     private String namespace;
 
     /**
-     * Deployment 名称 (例: taixu-rt-{userId}-{suffix}).
+     * Deployment 名称 (例: gateway-rt-{userId}-{suffix}).
      */
     private String deploymentName;
 
     /**
-     * Service 名称 (例: taixu-rt-{userId}-{suffix}).
+     * Service 名称 (例: gateway-rt-{userId}-{suffix}).
      */
     private String serviceName;
 
     /**
-     * 服务内网访问地址 (例: http://taixu-rt-{userId}-{suffix}.honghuang-runtime.svc.cluster.local).
+     * 服务内网访问地址 (例: http://gateway-rt-{userId}-{suffix}.taichu-runtime.svc.cluster.local).
      */
     private String internalUrl;
 
     /**
-     * 对外访问入口 (例: http://df-dev.localhost/agent/).
+     * 对外访问入口 (例: http://<runtimeId>.runtime.taichu.localhost/agent/).
      */
     private String agentApiBase;
 

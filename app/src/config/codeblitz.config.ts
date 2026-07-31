@@ -4,11 +4,22 @@ import { SlotLocation } from '@opensumi/ide-core-browser';
 
 import { WelcomePage } from '../components/WelcomePage';
 import { OpencodeFileClient, OpencodeFileEntry } from '../services/opencode';
+import { getRuntimeConfig } from './runtime';
 import { LayoutComponent } from './layout';
 
-const OPENCODE_BASE_URL = process.env.OPENCODE_BASE_URL || 'http://127.0.0.1:24096';
-
-const fileClient = new OpencodeFileClient(OPENCODE_BASE_URL);
+// fileClient 延迟读取 baseUrl：模块导入时 runtime 尚未解析，
+// 每次调用通过 getRuntimeConfig() 拿当前注入值。
+let fileClient: OpencodeFileClient | null = null;
+function getFileClient(): OpencodeFileClient {
+  if (!fileClient) {
+    const { baseUrl } = getRuntimeConfig();
+    if (!baseUrl) {
+      throw new Error('[Taichu] runtime baseUrl not resolved yet');
+    }
+    fileClient = new OpencodeFileClient(baseUrl);
+  }
+  return fileClient;
+}
 
 function toFileEntries(entries: OpencodeFileEntry[]): [string, FileType][] {
   return entries.map((entry) => [
@@ -60,7 +71,7 @@ export const appConfig: IAppRendererProps['appConfig'] = {
 
 export const runtimeConfig: IAppRendererProps['runtimeConfig'] = {
   // startupEditor: 'welcomePage' 保证首屏在 editor 区打开一个欢迎 tab；
-  // WelcomePage 覆盖 CodeBlitz 默认的 Codeblitz 品牌页为洪荒自制欢迎页。
+  // WelcomePage 覆盖 CodeBlitz 默认的 Codeblitz 品牌页为Taichu自制欢迎页。
   startupEditor: 'welcomePage',
   WelcomePage: WelcomePage as any,
   workspace: {
@@ -72,11 +83,11 @@ export const runtimeConfig: IAppRendererProps['runtimeConfig'] = {
           fs: 'DynamicRequest',
           options: {
             async readDirectory(p: string) {
-              const entries = await fileClient.readDirectory(p);
+              const entries = await getFileClient().readDirectory(p);
               return toFileEntries(entries);
             },
             async readFile(p: string) {
-              return fileClient.readFile(p);
+              return getFileClient().readFile(p);
             },
           },
         },
@@ -84,9 +95,9 @@ export const runtimeConfig: IAppRendererProps['runtimeConfig'] = {
     },
     async onDidSaveTextDocument({ filepath, content }) {
       try {
-        await fileClient.writeFile(filepath, content);
+        await getFileClient().writeFile(filepath, content);
       } catch (error) {
-        console.error(`[洪荒] 写回 opencode 失败: ${filepath}`, error);
+        console.error(`[Taichu] 写回 opencode 失败: ${filepath}`, error);
       }
     },
     async onDidCreateFiles(files: string[]) {
@@ -94,12 +105,12 @@ export const runtimeConfig: IAppRendererProps['runtimeConfig'] = {
         files.map(async (filepath) => {
           try {
             if (looksLikeFile(filepath)) {
-              await fileClient.createFile(filepath);
+              await getFileClient().createFile(filepath);
             } else {
-              await fileClient.createDirectory(filepath);
+              await getFileClient().createDirectory(filepath);
             }
           } catch (error) {
-            console.error(`[洪荒] 新建写回失败: ${filepath}`, error);
+            console.error(`[Taichu] 新建写回失败: ${filepath}`, error);
           }
         })
       );
@@ -108,9 +119,9 @@ export const runtimeConfig: IAppRendererProps['runtimeConfig'] = {
       await Promise.all(
         files.map(async (filepath) => {
           try {
-            await fileClient.deletePath(filepath);
+            await getFileClient().deletePath(filepath);
           } catch (error) {
-            console.error(`[洪荒] 删除写回失败: ${filepath}`, error);
+            console.error(`[Taichu] 删除写回失败: ${filepath}`, error);
           }
         })
       );

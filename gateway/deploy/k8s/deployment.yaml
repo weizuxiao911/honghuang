@@ -1,6 +1,6 @@
 # =============================================================================
-# taixu（太虚）K8s 部署清单 - 流量网关 + K8s 编排中枢
-# 命名空间: honghuang-infra (网关) + honghuang-runtime (运行时)
+# gateway（gateway）K8s 部署清单 - 流量网关 + K8s 编排中枢
+# 命名空间: taichu-infra (网关) + taichu-runtime (运行时)
 # 部署模式: Deployment 多副本, 平台共享
 # 职责: 统一路由入口 + 动态创建/销毁用户 Runtime Pod
 # 网络流向: Ingress -> Service -> Pod
@@ -11,36 +11,36 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: honghuang-infra
+  name: taichu-infra
   labels:
-    app: taixu
-    module: honghuang
+    app: gateway
+    module: taichu
 ---
 # 运行时命名空间 (用户独立 Pod 所在)
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: honghuang-runtime
+  name: taichu-runtime
   labels:
-    app: taixu
-    module: honghuang
+    app: gateway
+    module: taichu
 ---
 # 网关 ServiceAccount (在 infra 命名空间)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: taixu
-  namespace: honghuang-infra
+  name: gateway
+  namespace: taichu-infra
   labels:
     app.kubernetes.io/component: platform
 
 ---
-# 网关在自身命名空间 (honghuang-infra) 读自身 Pod (Spring Cloud Kubernetes 健康检查)
+# 网关在自身命名空间 (taichu-infra) 读自身 Pod (Spring Cloud Kubernetes 健康检查)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: taixu-self-reader
-  namespace: honghuang-infra
+  name: gateway-self-reader
+  namespace: taichu-infra
 rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log"]
@@ -50,15 +50,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: taixu-self-reader-binding
-  namespace: honghuang-infra
+  name: gateway-self-reader-binding
+  namespace: taichu-infra
 subjects:
   - kind: ServiceAccount
-    name: taixu
-    namespace: honghuang-infra
+    name: gateway
+    namespace: taichu-infra
 roleRef:
   kind: Role
-  name: taixu-self-reader
+  name: gateway-self-reader
   apiGroup: rbac.authorization.k8s.io
 
 ---
@@ -66,14 +66,14 @@ roleRef:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: taixu-runtime-manager
-  namespace: honghuang-runtime
+  name: gateway-runtime-manager
+  namespace: taichu-runtime
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
   - apiGroups: [""]
-    resources: ["services"]
+    resources: ["services", "serviceaccounts"]
     verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
   - apiGroups: [""]
     resources: ["pods", "pods/log"]
@@ -81,20 +81,23 @@ rules:
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: taixu-runtime-manager-binding
-  namespace: honghuang-runtime
+  name: gateway-runtime-manager-binding
+  namespace: taichu-runtime
 subjects:
   - kind: ServiceAccount
-    name: taixu
-    namespace: honghuang-infra
+    name: gateway
+    namespace: taichu-infra
 roleRef:
   kind: Role
-  name: taixu-runtime-manager
+  name: gateway-runtime-manager
   apiGroup: rbac.authorization.k8s.io
 
 ---
@@ -102,8 +105,8 @@ roleRef:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: taixu-config
-  namespace: honghuang-infra
+  name: gateway-config
+  namespace: taichu-infra
   labels:
     app.kubernetes.io/component: platform
 data:
@@ -112,7 +115,7 @@ data:
       port: 8080
     spring:
       application:
-        name: taixu
+        name: gateway
       cloud:
         gateway:
           httpclient:
@@ -129,7 +132,7 @@ data:
             enabled: false
         data:
           redis:
-            host: redis.honghuang-infra.svc.cluster.local
+            host: redis.taichu-infra.svc.cluster.local
             port: 6379
             database: 0
     management:
@@ -140,18 +143,18 @@ data:
       endpoint:
         health:
           show-details: always
-    taixu:
+    gateway:
       runtime:
-        image: dongfu:dev
-        ttl: 3600
+        image: agent-image:dev
+        ttl: 600
         agent:
           port: 4096
-        workspace-pvc-claim-name: dongfu-workspace
+        workspace-pvc-claim-name: agent-image-workspace
         workspace-pvc-sub-path-root: workspaces
         workspace-mount-path: /workspace
         home-mount-path: /root/.local/share/opencode
         scheme: http
-        gateway-host: df-dev.localhost
+        runtime-host-suffix: runtime.taichu.localhost
         agent-prefix: /agent/
         wait-timeout-seconds: 120
         poll-interval-ms: 2000
@@ -165,22 +168,22 @@ data:
             memory: 1Gi
       kubernetes:
         cluster: default
-        namespace: honghuang-runtime
+        namespace: taichu-runtime
         dns-suffix: svc.cluster.local
       redis:
-        key-prefix: honghuang-runtime
+        key-prefix: taichu-runtime
 
 ---
 # 网关 Deployment (2 副本, 平台共享)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: taixu
-  namespace: honghuang-infra
+  name: gateway
+  namespace: taichu-infra
   labels:
-    app: taixu
+    app: gateway
     app.kubernetes.io/component: platform
-    app.kubernetes.io/part-of: honghuang
+    app.kubernetes.io/part-of: taichu
 spec:
   replicas: 2
   strategy:
@@ -190,25 +193,25 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: taixu
+      app: gateway
   template:
     metadata:
       labels:
-        app: taixu
+        app: gateway
         app.kubernetes.io/component: platform
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
         prometheus.io/path: "/actuator/prometheus"
     spec:
-      serviceAccountName: taixu
+      serviceAccountName: gateway
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
       containers:
-        - name: taixu
-          image: taixu:dev
+        - name: gateway
+          image: taichu/gateway:dev
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -216,12 +219,12 @@ spec:
               protocol: TCP
           env:
             - name: SPRING_CONFIG_ADDITIONAL_LOCATION
-              value: optional:file:/etc/taixu/config/application.yml
+              value: optional:file:/etc/gateway/config/application.yml
             - name: SPRING_PROFILES_ACTIVE
               value: prod
           volumeMounts:
             - name: config
-              mountPath: /etc/taixu/config
+              mountPath: /etc/gateway/config
               readOnly: true
             - name: tmp
               mountPath: /tmp
@@ -255,7 +258,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: taixu-config
+            name: gateway-config
         - name: tmp
           emptyDir: {}
       terminationGracePeriodSeconds: 30
@@ -265,10 +268,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: taixu
-  namespace: honghuang-infra
+  name: gateway
+  namespace: taichu-infra
   labels:
-    app: taixu
+    app: gateway
     app.kubernetes.io/component: platform
 spec:
   type: ClusterIP
@@ -278,15 +281,15 @@ spec:
       targetPort: http
       protocol: TCP
   selector:
-    app: taixu
+    app: gateway
 
 ---
-# 网关 Ingress (taixu.localhost -> taixu Service -> Pod)
+# 网关 Ingress (gateway.localhost -> gateway Service -> Pod)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: taixu-ingress
-  namespace: honghuang-infra
+  name: gateway-ingress
+  namespace: taichu-infra
   labels:
     app.kubernetes.io/component: platform
   annotations:
@@ -294,17 +297,78 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,x-user-id,x-tenant-id,x-deploy-env,accept,origin"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-expose-headers: "*"
 spec:
   ingressClassName: nginx
   rules:
-    - host: taixu.localhost
+    - host: gateway.localhost
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: taixu
+                name: gateway
+                port:
+                  number: 80
+    - host: gateway.taichu.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80
+
+---
+# 动态运行时子域名 Ingress ({runtimeId}.runtime.taichu.localhost -> gateway Service -> Pod)
+# gateway RuntimeRoutingFilter 按 host 前缀解析 runtimeId 并转发到对应 agent-image Pod。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: runtime-ingress
+  namespace: taichu-infra
+  labels:
+    app.kubernetes.io/component: runtime-proxy
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,x-user-id,x-tenant-id,x-deploy-env,accept,origin"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-expose-headers: "*"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "*.runtime.localhost"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80
+    - host: "*.runtime.taichu.localhost"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
                 port:
                   number: 80
 
@@ -313,13 +377,13 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: taixu-hpa
-  namespace: honghuang-infra
+  name: gateway-hpa
+  namespace: taichu-infra
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: taixu
+    name: gateway
   minReplicas: 2
   maxReplicas: 10
   metrics:

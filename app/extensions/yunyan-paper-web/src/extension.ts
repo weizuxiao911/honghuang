@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 const log = (...args: unknown[]) => console.log('>>>[yunyan-paper-web]', ...args);
 
-const VIEW_TYPE = 'yunyan-paperPlugin.paperEditor';
+const VIEW_TYPE = 'yunyan.paperEditor';
 
 interface QuestionBase {
   id?: string;
@@ -143,7 +143,7 @@ function buildHtml(webview: vscode.Webview, extensionUri: vscode.Uri, initialSta
 
   // 静态资源通过 asWebviewUri 转成 https://<registry>/... 域，需要把每个资源的 origin 都
   // 加进 CSP style-src/img-src/script-src，否则浏览器会拒绝加载。webview.cspSource 只覆盖
-  // OpenSumi 默认域，跨域 langhuan 分发域必须显式补充。
+  // OpenSumi 默认域，跨域 registry 分发域必须显式补充。
   const originSet = new Set<string>();
   const scriptOrigin = safeOrigin(scriptUri.toString());
   if (scriptOrigin) originSet.add(scriptOrigin);

@@ -1,0 +1,12 @@
+# gateway 动态调度运行时 Pod 所在 namespace
+# gateway 启动时按 userId/tenantId 在此 namespace 内创建 Deployment/Service/Ingress，
+# 不需要预先 apply。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: taichu-runtime
+  labels:
+    module: taichu
+---
+# gateway 用的 ServiceAccount（在 taichu-infra 已声明），运行时 namespace 不再重复声明。
+# 静态 DevMode 占位 Pod（在 taichu-agent-image 已删除）由 gateway K8sRuntimeOperator 创建。

@@ -1,35 +1,29 @@
-# dongfu（洞府）本地 K8s 开发部署
+# agent-image（agent-image）本地 K8s 开发部署
 #
-# 唯一事实源: ../设计文档.md 第四章「dongfu（洞府）」 + ../../设计文档.md
-# 本清单按设计文档第四章契约的最小本地验证:
-#   - /workspace         持久化(PVC,5Gi hostpath)
-#   - /root/.config      运行时(emptyDir,重启可丢;生产由 taixu 注入)
-#   - /root/.local       运行时(emptyDir,重启可丢;生产由 taixu 挂独立 PVC)
+# 唯一事实源: ../设计文档.md 第四章「agent-image（agent-image）」
+# 访问路径: gateway 通过 K8s API 动态创建 Pod（见 taichu-runtime namespace），不依赖静态 Deployment。
+# PVC 在此 namespace 保留供 gateway 动态 Pod 挂载；ServiceAccount / RBAC 由 gateway 侧管理。
 #
-# 访问路径: Ingress(dongfu.local) -> Service(80) -> Pod(4096)
-#   本地访问: 通过 ingress-nginx-controller NodePort 31071 + Host: dongfu.local
-#     或 kubectl port-forward svc/ingress-nginx-controller 8080:80 -n ingress + Host: dongfu.local
-# 一次性应用: kubectl apply -f dongfu/k8s/dev.yaml
-# 健康检查: curl -H 'Host: dongfu.local' -H 'Accept:application/json' http://localhost:8080/global/health
-#
-# 不注入 OPENCODE_CONFIG,避免 opencode schema 兼容性问题;业务配置由 taixu 在生产环境注入。
+# 不注入 OPENCODE_CONFIG，避免 opencode schema 兼容性问题；业务配置由 gateway 在 Pod 创建时通过 OPENCODE_CONFIG_CONTENT 注入。
 
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: honghuang-dongfu
+  name: taichu-agent-image
   labels:
-    app: dongfu
-    module: honghuang
+    app: agent-image
+    module: taichu
+# 此 namespace 保留为 gateway 动态创建 agent-image DevMode Pod 的归属。
+# 历史静态 Deployment/Service/Ingress 已下线，由 gateway 通过 K8s API 在此处按需创建。
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: dongfu-workspace
-  namespace: honghuang-dongfu
+  name: agent-image-workspace
+  namespace: taichu-agent-image
   labels:
-    app: dongfu
+    app: agent-image
 spec:
   accessModes:
     - ReadWriteOnce
@@ -37,105 +31,3 @@ spec:
   resources:
     requests:
       storage: 5Gi
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: dongfu-dev
-  namespace: honghuang-dongfu
-  labels:
-    app: dongfu
-    module: honghuang
-    runtimeId: rt-dev
-    tenantId: dev
-    userId: dev
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: dongfu
-      runtimeId: rt-dev
-  template:
-    metadata:
-      labels:
-        app: dongfu
-        module: honghuang
-        runtimeId: rt-dev
-        tenantId: dev
-        userId: dev
-    spec:
-      containers:
-        - name: dongfu
-          image: honghuang/dongfu:dev
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 4096
-              name: agent
-              protocol: TCP
-          resources:
-            limits:
-              cpu: 500m
-              memory: 1Gi
-            requests:
-              cpu: 100m
-              memory: 128Mi
-          volumeMounts:
-            - name: workspace
-              mountPath: /workspace
-            - name: config
-              mountPath: /root/.config/opencode
-            - name: data
-              mountPath: /root/.local/share/opencode
-      volumes:
-        - name: workspace
-          persistentVolumeClaim:
-            claimName: dongfu-workspace
-        - name: config
-          emptyDir: {}
-        - name: data
-          emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: dongfu-dev
-  namespace: honghuang-dongfu
-  labels:
-    app: dongfu
-spec:
-  type: ClusterIP
-  selector:
-    app: dongfu
-    runtimeId: rt-dev
-  ports:
-    - port: 80
-      targetPort: 4096
-      protocol: TCP
-      name: agent
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: dongfu-dev
-  namespace: honghuang-dongfu
-  labels:
-    app: dongfu
-  annotations:
-    # SSE 长连接透传所需
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    # 大报文支持(opencode /doc 478KB+)
-    nginx.ingress.kubernetes.io/proxy-body-size: "0"
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: df-dev.localhost
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: dongfu-dev
-                port:
-                  number: 80

@@ -1,8 +1,8 @@
-# taixu（太虚）
+# gateway（调度平面）
 
 > 全局调度平面：流量网关 + K8s 运行时编排中枢。承接交互平面请求，标准化管理用户专属 Agent 隔离沙箱。
 
-详细职责、边界、技术栈见 [`../设计文档.md`](../设计文档.md) 第三章「taixu（太虚）」。
+详细职责、边界、技术栈见 [`../设计文档.md`](../设计文档.md) 第三章「gateway（调度平面）」。
 
 ## 当前状态
 
@@ -21,13 +21,13 @@
 - **流量网关模块**：收敛公网流量，区分主域名平台接口与子域名运行实例路由；统一鉴权、SSE 长连接透传、限流、熔断降级、全链路日志。
 - **K8s 编排调度模块**：预置 Deployment / Service / PVC / HPA 资源模板，按需创建用户独占 Pod；Redis 双索引（userId ⇄ runtimeId）管理运行时状态；TTL 自动回收。
 - **双通道寻址规则**：同源请求靠 `x-runtime-id` Header 定位实例；跨端跳转靠子域名 Host 匹配路由。
-- **反向代理**：将前端 A2UI 请求经 SSE 转发至对应洞府沙箱。
+- **反向代理**：将前端 A2UI 请求经 SSE 转发至对应agent-image沙箱。
 
 ## 边界约束
 
 - **不**渲染前端界面，**不**解析 A2UI 业务协议，**不**承载 Agent 业务执行逻辑。
 - **不**硬编码服务凭据；鉴权统一由网关完成。
-- **不**直接代理 langhuan 下载接口。
+- **不**直接代理 registry 下载接口。
 
 ## 路由规则（设计文档第三章）
 
@@ -51,7 +51,7 @@ mvn clean package -DskipTests
 mvn spring-boot:run
 
 # 4. 构建镜像
-docker build -t taixu:dev .
+docker build -t gateway:dev .
 
 # 5. 部署到 K8s
 kubectl apply -f deploy/k8s/deployment.yaml
@@ -59,11 +59,11 @@ kubectl apply -f deploy/k8s/deployment.yaml
 
 ## 与其它模块的接口
 
-- **上游调用方**：[`../zifu/`](../zifu/) 域的浏览器容器所有 HTTP/SSE 请求。
-- **下游运行时**：本模块通过 K8s API 创建并管理 [`../dongfu/`](../dongfu/) Pod。
-- **插件来源**：本模块按需向 [`../langhuan/`](../langhuan/) 拉取可下发的 VSIX 名单，写入 dongfu 容器配置。
+- **上游调用方**：[`../app/`](../app/) 域的浏览器容器所有 HTTP/SSE 请求。
+- **下游运行时**：本模块通过 K8s API 创建并管理 [`../agent-image/`](../agent-image/) Pod。
+- **插件来源**：本模块按需向 [`../registry/`](../registry/) 拉取可下发的 VSIX 名单，写入 agent-image 容器配置。
 
-## 调研参考
+## 参考资料
 
-- 概念参考：`/Users/weizuxiao/Documents/studio/03-开源资产/browser-runtime/02-中期-opensumi-in-browser/agent-gateway`（已沉淀的独立调研实现）
-- 总体架构权衡见 [`../docs/架构设计.md`](../docs/架构设计.md)（注：原文以 AgentNest 为工作名，技术结论可复用）
+- 概念参考：`/Users/weizuxiao/Documents/studio/03-开源资产/browser-runtime/02-中期-opensumi-in-browser/agent-gateway`
+- 总体架构权衡见 [`../docs/架构设计.md`](../docs/架构设计.md)

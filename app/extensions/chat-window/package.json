@@ -1,17 +1,27 @@
 {
-  "name": "zifu-chat-window",
-  "displayName": "洪荒对话窗口",
-  "description": "洪荒紫府右侧对话窗口：按会话隔离，直连 opencode SDK，SSE 实时更新",
+  "name": "taichu-chat-window",
+  "displayName": "Taichu 对话窗口",
+  "description": "Taichu 右侧对话窗口：按会话隔离，直连 opencode SDK，SSE 实时更新",
   "version": "0.1.0",
-  "publisher": "honghuang",
+  "publisher": "taichu",
   "engines": {
-    "vscode": "^1.60.0",
-    "kaitian": "*",
-    "opensumi": "*"
+    "vscode": "^1.57.0"
   },
-  "activationEvents": ["*"],
-  "browser": "./out/extension.js",
-  "contributes": {},
+  "categories": ["Chat"],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "browser": "./out/views.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "taichu.chat.refresh",
+        "title": "刷新对话",
+        "category": "Taichu"
+      }
+    ]
+  },
   "sumiContributes": {
     "workerMain": "./out/extension.js",
     "browserMain": "./out/views.js",
@@ -20,9 +30,9 @@
         "type": "add",
         "view": [
           {
-            "id": "zifu.chatWindow",
+            "id": "chatWindow",
             "icon": "message",
-            "title": "洪荒对话"
+            "title": "Taichu 对话"
           }
         ]
       }

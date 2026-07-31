@@ -24,7 +24,9 @@ async function build() {
     ...shared,
     entryPoints: [path.join(root, 'src/views.tsx')],
     outfile: path.join(root, 'out/views.js'),
-    external: ['React', 'ReactDOM', 'react', 'react-dom', 'vscode'],
+    // CodeBlitz view 协议直接把 component 渲染到主 React tree，
+    // 必须 inline React + ReactDOM（不能用 external）。
+    external: ['vscode'],
   });
 }
 

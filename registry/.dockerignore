@@ -1,0 +1,17 @@
+.git/
+.gitignore
+.gitkeep
+
+# 文档
+README.md
+AGENTS.md
+docs/
+
+# 过程产物
+.cache/
+
+# 依赖
+node_modules/
+
+.vscode/
+.DS_Store

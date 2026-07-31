@@ -1,9 +1,9 @@
 {
   "$schema": "https://opencode.ai/schema.json",
   "_meta": {
-    "purpose": "dongfu 默认 opencode.json（最小骨架）",
-    "source_of_truth": "../设计文档.md 第四章「dongfu（洞府）」",
-    "note": "本镜像不绑定任何业务 Agent。业务 agents / skills / tools / plugins 由 taixu 在 Pod 创建时通过 /root/.config/opencode 挂载或 OPENCODE_CONFIG_CONTENT 环境变量覆盖。"
+    "purpose": "agent-image 默认 opencode.json（最小骨架）",
+    "source_of_truth": "../设计文档.md 第四章「agent-image（运行平面）」",
+    "note": "本镜像不绑定任何业务 Agent。业务 agents / skills / tools / plugins 由 gateway 在 Pod 创建时通过 /root/.config/opencode 挂载或 OPENCODE_CONFIG_CONTENT 环境变量覆盖。"
   },
   "theme": "system",
   "provider": {},

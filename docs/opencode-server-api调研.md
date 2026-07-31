@@ -87,7 +87,7 @@
 ## 6. 遗留问题 / 下一步
 
 - [ ] `/vcs/apply` 的 "clean" 判定与 snapshot 机制细节（需读源码确认能否作为稳定写入通道）。
-- [ ] PTY WebSocket（`/pty/:id/connect`）在浏览器扩展里的实测接入（本轮只验证了 PTY 创建+落盘，未验证 WS 交互流）。
+- [ ] PTY WebSocket（`/pty/:id/connect`）在浏览器扩展里的实测接入（已验证 PTY 创建+落盘；WS 交互流未验证）。
 - [ ] `prompt_async` + SSE 的断线重连 / 会话恢复语义（支撑 §3.2 长连接路由）。
 - [ ] `/experimental/workspace*` 与 `/sync/*` 是否可支撑架构 §3 的多租户调度（这批 API 是 warm pool / PVC 绑定的潜在解）。
 - [ ] Experimental 标记端点的稳定性与版本兼容风险。

@@ -1,20 +1,19 @@
-package com.honghuang.taixu.config;
+package com.taichu.gateway.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 洪荒太虚配置属性, 对应 application.yml 中 taixu.* 前缀.
- * 全字段中文注释, 与 设计文档.md 第三章「taixu（太虚）」对应.
+ * Taichu gateway 配置属性, 对应 application.yml 中 gateway.* 前缀.
+ * 全字段中文注释, 与 设计文档.md 第三章「gateway（gateway）」对应.
  */
 @Data
-@Component
-@ConfigurationProperties(prefix = "taixu")
-public class TaixuProperties {
+@ConfigurationProperties(prefix = "gateway")
+public class PlatformProperties {
 
     /**
-     * 运行时配置, 控制 dongfu Pod 生命周期与资源规格.
+     * 运行时配置, 控制 agent-image Pod 生命周期与资源规格.
      */
     private Runtime runtime = new Runtime();
 
@@ -31,7 +30,7 @@ public class TaixuProperties {
     @Data
     public static class Runtime {
         /**
-         * dongfu 镜像名 (例: dongfu:dev).
+         * agent-image 镜像名 (例: agent-image:dev).
          */
         private String image;
         /**
@@ -39,7 +38,7 @@ public class TaixuProperties {
          */
         private long ttl;
         /**
-         * dongfu 容器内 opencode 监听端口 (固定 4096, 与 设计文档 第四章契约一致).
+         * agent-image 容器内 opencode 监听端口 (固定 4096, 与 设计文档 第四章契约一致).
          */
         private Agent agent = new Agent();
         /**
@@ -63,9 +62,11 @@ public class TaixuProperties {
          */
         private String scheme;
         /**
-         * 网关对外 host, 用于构造 agentApiBase (例: df-dev.localhost).
+         * Sandbox 子域后缀 (例: runtime.taichu.localhost).
+         * agentApiBase 按 runtimeId + runtimeHostSuffix 动态构造,
+         * 设计文档第三章: gateway 调度层 + 单一子域转发.
          */
-        private String gatewayHost;
+        private String runtimeHostSuffix;
         /**
          * Agent API 路径前缀 (例: /agent/).
          */
@@ -98,10 +99,14 @@ public class TaixuProperties {
 
     @Data
     public static class Resources {
-        private String cpuRequest;
-        private String memoryRequest;
-        private String cpuLimit;
-        private String memoryLimit;
+        private Resource requests = new Resource();
+        private Resource limits = new Resource();
+    }
+
+    @Data
+    public static class Resource {
+        private String cpu;
+        private String memory;
     }
 
     @Data

@@ -9,13 +9,13 @@
   },
   "categories": ["Other"],
   "activationEvents": [
-    "onCustomEditor:yunyan-paperPlugin.paperEditor"
+    "onCustomEditor:yunyan.paperEditor"
   ],
   "browser": "./out/extension.js",
   "contributes": {
     "customEditors": [
       {
-        "viewType": "yunyan-paperPlugin.paperEditor",
+        "viewType": "yunyan.paperEditor",
         "displayName": "Yunyan Paper Viewer",
         "selector": [
           { "filenamePattern": "*.paper" }

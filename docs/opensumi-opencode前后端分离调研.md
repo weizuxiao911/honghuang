@@ -11,7 +11,7 @@
 - ✅ **opencode 提供官方 JS SDK**（`@opencode-ai/sdk` v1.18.8），三种入口：纯 HTTP 客户端、代码内起 server、一把起 server+client。后端接入不用手撸 HTTP。
 - ✅ **前端内核选 CodeBlitz**（`@codeblitzjs/ide-core` 2.4.6，基于 OpenSumi 3.6.5 / react18，含 AI 原生模块）。文件系统（`DynamicRequest` 只读 + 保存回调写回）与扩展加载均为一等 API，优于停更的旧 lite 模板。
 - ✅ **vsix 是唯一的业务交互载体**：CodeBlitz/OpenSumi 是**纯容器、零业务**，仅提供 IDE 骨架；**Agent 会话管理、对话窗口、工具/diff 展示、行为规范全部由 AgentNest vsix 承载**。容器保持通用不变，前端交互形态由 vsix 定义。
-- ✅ **CodeBlitz 容器已本地跑通**（webpack5 + React18），`DynamicRequest` 只读接 opencode `/file`、`/file/content`，浏览器实测文件树 = 容器 `/workspace` 真实内容、编辑器读真实文件。见《poc/opensumi-web》。
+- ✅ **CodeBlitz 容器已本地跑通**（webpack5 + React18），`DynamicRequest` 只读接 opencode `/file`、`/file/content`，浏览器实测文件树 = 容器 `/workspace` 真实内容、编辑器读真实文件。见《CodeBlitz 容器已本地跑通》（webpack5 + React18）。
 - 🟡 **vsix 全链路加载、文件写回回路、BFF SSE 转发**：机制清晰但**尚未端到端 POC**，列入下一步。
 
 ---
@@ -66,7 +66,7 @@ CodeBlitz 通过单一 React 组件装配整个 IDE：
 - 必须配 **less-loader**（OpenSumi 组件含 `.less`，缺失则百余处 parse 报错）、node-polyfill（`process`/`Buffer`）、`path-browserify`、`experiments.asyncWebAssembly`。
 - Monaco worker 默认从阿里云 CDN（`gw.alipayobjects.com`）加载，离线/受限网络会报 `importScripts` 失败；不影响渲染与文件读取，生产需本地化托管。
 
-详见《poc/opensumi-web》。
+详见《CodeBlitz 容器已本地跑通》（webpack5 + React18）。
 
 ### 3.3 文件系统接入（关键，源码实测）
 
@@ -91,7 +91,7 @@ interface DynamicRequestOptions<T = any> {
 
 映射 opencode：
 
-| DynamicRequest 方法 | opencode 端点 | 前序验证 |
+| DynamicRequest 方法 | opencode 端点 | 实测验证 |
 |---|---|---|
 | `readDirectory(p)` | `GET /file?path=` | ✅ |
 | `readFile(p)` | `GET /file/content?path=` | ✅ |
@@ -217,13 +217,13 @@ opencode **无直接写文件端点**。CodeBlitz 的 `onDidSaveTextDocument` / 
 - **容器层**（CodeBlitz）：纯 IDE 骨架，无业务，可共享、可预热。
 - **业务层**（AgentNest vsix）：**全部前端交互**，包括 Agent 会话管理与对话窗口。交互形态由 vsix 定义，容器保持通用。
 - **桥接层 BFF**：`createOpencodeClient` 连租户 opencode 实例；做鉴权、per-tenant 路由、SSE 转发、把文件保存回调映射到 PTY/Agent 落盘。
-- **能力层**（opencode Docker）：前序 POC 已验证可跑（1C1G、API 全通、扩展可挂载注入）。
+- **能力层**（opencode Docker）：已验证可跑（1C1G、API 全通、扩展可挂载注入）。
 
 ---
 
 ## 6. 关键未验证点（下一步 POC）
 
-- [x] CodeBlitz 容器本地跑起来（webpack5 + React18，构建工具链已验证；无 Vite 官方支持）—— 见《poc/opensumi-web》
+- [x] CodeBlitz 容器本地跑起来（webpack5 + React18，构建工具链已验证；无 Vite 官方支持）—— 见《CodeBlitz 容器已本地跑通》（webpack5 + React18）
 - [x] 文件系统：`DynamicRequest.readDirectory/readFile` 接 opencode `/file`、`/file/content`（读通，文件树 = 真实工作区；大目录按需加载性能待压测）
 - [ ] 写回路径：`onDidSaveTextDocument` → PTY/Agent 落盘后，编辑器状态一致性
 - [ ] **vsix（核心）：CLI 打包自研扩展 → `extensionMetadata`/`webAssets` → 运行时激活 Webview 全链路**
@@ -236,7 +236,7 @@ opencode **无直接写文件端点**。CodeBlitz 的 `onDidSaveTextDocument` / 
 
 ## 7. 已确立的可行性依据（不需再验证）
 
-- opencode 打 Docker、1C1G 可跑、188 API 全通、扩展可注入 → 见《poc/opencode-docker》
+- opencode 打 Docker、1C1G 可跑、188 API 全通、扩展可注入 → 见《OpenCode Docker 化已跑通》（node:22-slim）
 - opencode 无写文件 API，但 PTY/Agent 可落盘 → 见《opencode-server-api调研.md》§4
 - 沙箱边界由 K8s 容器提供，opencode 无需内部远程沙箱 → 见同上调研补充
 - opencode 官方 SDK 覆盖全部端点 → 本文 §2

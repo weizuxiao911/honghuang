@@ -1,8 +1,10 @@
-package com.honghuang.taixu.config;
+package com.taichu.gateway.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.honghuang.taixu.model.RuntimeSnapshot;
-import com.honghuang.taixu.repository.RuntimeRepository;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.taichu.gateway.model.RuntimeSnapshot;
+import com.taichu.gateway.repository.RuntimeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -18,11 +20,11 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * Redis 运行时仓储配置, 按 设计文档.md 第三章「taixu（太虚）」> Redis 双索引.
+ * Redis 运行时仓储配置, 按 设计文档.md 第三章「gateway（gateway）」> Redis 双索引.
  *
  * 设计文档第三章: Redis 双索引存储运行时状态, 支持 userId、runtimeId 双向检索, 自带 TTL 过期机制.
  *
- * 键约定 (keyPrefix 默认 honghuang-runtime):
+ * 键约定 (keyPrefix 默认 taichu-runtime):
  *   {prefix}:user:{userId}     -> RuntimeSnapshot JSON (按 userId 检索)
  *   {prefix}:runtime:{runtimeId} -> RuntimeSnapshot JSON (按 runtimeId 检索)
  *   {prefix}:user-index:{userId} -> runtimeId (反向索引, TTL 与快照同步)
@@ -33,11 +35,14 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class RedisConfig {
 
-    private final TaixuProperties taixuProperties;
+    private final PlatformProperties gatewayProperties;
 
     @Bean
     public ReactiveRedisTemplate<String, RuntimeSnapshot> runtimeRedisTemplate(ReactiveRedisConnectionFactory factory) {
-        Jackson2JsonRedisSerializer<RuntimeSnapshot> valueSerializer = new Jackson2JsonRedisSerializer<>(RuntimeSnapshot.class);
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        Jackson2JsonRedisSerializer<RuntimeSnapshot> valueSerializer = new Jackson2JsonRedisSerializer<>(mapper, RuntimeSnapshot.class);
         StringRedisSerializer keySerializer = new StringRedisSerializer();
 
         RedisSerializationContext<String, RuntimeSnapshot> context = RedisSerializationContext
@@ -50,7 +55,7 @@ public class RedisConfig {
 
     @Bean
     public RuntimeRepository runtimeRepository(ReactiveRedisTemplate<String, RuntimeSnapshot> template,
-                                               TaixuProperties properties) {
+                                               PlatformProperties properties) {
         return new RedisRuntimeRepositoryImpl(template, properties);
     }
 
@@ -60,7 +65,7 @@ public class RedisConfig {
     @RequiredArgsConstructor
     private static class RedisRuntimeRepositoryImpl implements RuntimeRepository {
         private final ReactiveRedisTemplate<String, RuntimeSnapshot> template;
-        private final TaixuProperties properties;
+        private final PlatformProperties properties;
 
         private String userKey(String userId) {
             return properties.getRedis().getKeyPrefix() + ":user:" + userId;

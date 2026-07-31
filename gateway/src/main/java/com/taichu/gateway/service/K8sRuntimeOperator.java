@@ -1,10 +1,10 @@
-package com.honghuang.taixu.service;
+package com.taichu.gateway.service;
 
-import com.honghuang.taixu.model.RuntimeSnapshot;
+import com.taichu.gateway.model.RuntimeSnapshot;
 import reactor.core.publisher.Mono;
 
 /**
- * K8s 运行时操作端口 (SPI), 封装 dongfu Pod 生命周期管理.
+ * K8s 运行时操作端口 (SPI), 封装 agent-image Pod 生命周期管理.
  * 设计文档第三章: 预置 Deployment/Service/PVC/HPA 模板, 按需创建用户独占 Pod.
  */
 public interface K8sRuntimeOperator {
