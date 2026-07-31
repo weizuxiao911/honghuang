@@ -92,6 +92,20 @@ spec:
   selector:
     app: registry
 ---
+# registry TLS Secret: registry.taichu.localhost 自签证书（由 certs/cert.pem + key.pem 生成）
+# 重新生成证书后需更新: kubectl create secret tls registry-tls --cert=certs/cert.pem --key=certs/key.pem --dry-run=client -o yaml | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: registry-tls
+  namespace: taichu-infra
+  labels:
+    app.kubernetes.io/component: platform
+type: kubernetes.io/tls
+stringData:
+  tls.crt: ""
+  tls.key: ""
+---
 # registry Ingress: registry.taichu.localhost -> registry Service (HTTPS backend)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -108,6 +122,10 @@ metadata:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - registry.taichu.localhost
+      secretName: registry-tls
   rules:
     - host: registry.taichu.localhost
       http:

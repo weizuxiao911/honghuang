@@ -33,11 +33,10 @@ registry/
 cd registry
 npm install
 
-# 1. 生成自签证书（首次，本地开发；kt-ext 协议强制 https）
+# 1. 生成自签证书（首次，本地开发；kt-ext 协议强制 https；SAN 需覆盖 localhost 与 *.taichu.localhost）
 mkdir -p certs
-openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem \
-  -days 3650 -nodes -subj "/CN=localhost" \
-  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+# 用 python3 + cryptography 生成（含 *.taichu.localhost / *.runtime.taichu.localhost SAN）：
+#   SAN: DNS:localhost, DNS:*.taichu.localhost, DNS:*.runtime.taichu.localhost, IP:127.0.0.1
 # 让浏览器信任（macOS，一次性）
 sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain certs/cert.pem
 
@@ -49,6 +48,13 @@ npm run serve
 ```
 
 投放新扩展：把 `.vsix` 丢进 `vsix/`，重跑 `npm run build`（server 实时读 `dist/`，无需重启）。
+
+## K8s 部署（taichu-infra）
+
+- `Dockerfile` 构建期注入 `PUBLIC_HOST`（默认 `registry.taichu.localhost`），metadata 中扩展 URI 为 `kt-ext://${PUBLIC_HOST}/...`；本地开发可 `--build-arg PUBLIC_HOST=localhost:9000` 覆盖。
+- `k8s/deploy.yaml`：Deployment + ClusterIP Service + Ingress。Ingress 带 `tls`（secret `registry-tls`）+ `backend-protocol: HTTPS`（ingress → pod 为 https）。
+- 更新证书后同步 secret：`kubectl create secret tls registry-tls --cert=certs/cert.pem --key=certs/key.pem --dry-run=client -o yaml | kubectl apply -f -`。
+- 浏览器访问 `https://registry.taichu.localhost` 需信任 `certs/cert.pem`（同本地启动第 1 步）。
 
 ## 与其它模块的接口
 

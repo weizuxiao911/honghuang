@@ -7,6 +7,10 @@ RUN npm ci --no-audit --no-fund
 COPY tsconfig.json ./
 COPY src ./src
 COPY vsix ./vsix
+
+ARG PUBLIC_HOST=registry.taichu.localhost
+ENV PUBLIC_HOST=${PUBLIC_HOST}
+
 RUN npm run build
 
 FROM node:22-alpine
