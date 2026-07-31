@@ -87,3 +87,22 @@ Taichu（太初）：开箱即用通用 Agent 产品基座。**胶水哲学**为
 3. 与 `README.md` 模块结构表一致。
 4. 与涉及到的其它模块的 `README.md` / `AGENTS.md` 一致。
 5. 参考资料（`docs/`）未被误改；正式文档中不再出现旧命名（`zifu/langhuan/taixu/dongfu` 与中文别名）或 `.poc/` 路径。
+
+## AI 协作补充规则（继承根 AGENTS.md 并项目级细化）
+
+按根目录 [`../AGENTS.md`](../AGENTS.md) 的「判断标准：明显 vs 可能争议」执行。本项目落地：
+
+- **直接做**：
+  - 修复 taichu 模块的拼写/格式/注释错误
+  - 调整 `application.yml`、K8s 清单中的非语义参数值（副本数、timeout、CPU/Mem）
+  - 收敛旧命名（铁律 9）至 `app/` / `registry/` / `gateway/` / `agent-image/`
+  - 模块 README / AGENTS / 设计文档的结构性补全
+
+- **必须用 `question` 确认**：
+  - 改 `设计文档.md` 的任何产品蓝图字段（状态机、协议、拓扑）
+  - 改模块边界（违反铁律 2「单一职责」、铁律 3「跨模块只通过约定接口」）
+  - 引入新依赖、新 tool、新 CI 步骤（如新增 Helm chart、ArgoCD、Sidecar）
+  - 删除/迁移/重建 K8s 资源、覆盖远端 registry、强制 push
+  - RuntimeService 状态机、SSE 协议契约、agent-image 镜像 tag 等核心运行时契约变更
+  - 公开 HTTP/SDK API 路径或参数变更（chat-window / session-manager / opencode 调用 gateway 的契约）
+  - 与本文件「铁律」冲突或扩展
