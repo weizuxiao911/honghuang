@@ -159,6 +159,8 @@ data:
         wait-timeout-seconds: 120
         poll-interval-ms: 2000
         image-pull-policy: IfNotPresent
+        sse-heartbeat-seconds: 15
+        sse-renewal-seconds: 120
         resources:
           requests:
             cpu: "100m"
@@ -303,6 +305,7 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,x-user-id,x-tenant-id,x-deploy-env,accept,origin"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
     nginx.ingress.kubernetes.io/cors-expose-headers: "*"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
 spec:
   ingressClassName: nginx
   rules:
@@ -348,6 +351,7 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,x-user-id,x-tenant-id,x-deploy-env,accept,origin"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
     nginx.ingress.kubernetes.io/cors-expose-headers: "*"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
 spec:
   ingressClassName: nginx
   rules:

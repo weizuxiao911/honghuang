@@ -80,6 +80,14 @@ public class PlatformProperties {
          */
         private long pollIntervalMs;
         /**
+         * SSE 心跳间隔 (秒). 默认 15s.
+         */
+        private long sseHeartbeatSeconds = 15;
+        /**
+         * SSE 续约间隔 (秒). 默认 120s; 需小于 ttl, 防止订阅期间 TTL 过期.
+         */
+        private long sseRenewalSeconds = 120;
+        /**
          * 镜像拉取策略 (Always / IfNotPresent / Never).
          */
         private String imagePullPolicy;

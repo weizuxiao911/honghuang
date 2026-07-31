@@ -34,6 +34,15 @@ public interface K8sRuntimeOperator {
     Mono<RuntimeSnapshot> refresh(RuntimeSnapshot snapshot);
 
     /**
+     * 等待运行时 Pod Ready (K8s Watch 监听, 非轮询).
+     * Pod 就绪条件 = condition Ready=True; 超时由实现侧按 wait-timeout-seconds 处理.
+     *
+     * @param snapshot 运行时快照
+     * @return 就绪后快照
+     */
+    Mono<RuntimeSnapshot> waitForPodReady(RuntimeSnapshot snapshot);
+
+    /**
      * 重启运行时 (通过删除 + 重建).
      *
      * @param snapshot 运行时快照

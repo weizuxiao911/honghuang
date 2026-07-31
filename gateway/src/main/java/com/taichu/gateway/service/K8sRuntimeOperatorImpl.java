@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -48,6 +49,68 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
     public Mono<Boolean> delete(RuntimeSnapshot snapshot) {
         return Mono.fromCallable(() -> doDelete(snapshot))
                 .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    /**
+     * 等待运行时 Pod Ready: 先 list 防竞态 (watch 建立前可能已就绪), 未就绪则用 K8s Watch
+     * 监听 runtimeId 标签对应的 Pod, condition Ready=True 即返回. 超时按 wait-timeout-seconds.
+     */
+    @Override
+    public Mono<RuntimeSnapshot> waitForPodReady(RuntimeSnapshot snapshot) {
+        String namespace = snapshot.getNamespace();
+        String runtimeId = snapshot.getRuntimeId();
+        long timeoutSec = gatewayProperties.getRuntime().getWaitTimeoutSeconds();
+        log.info("watch 等待 pod Ready: runtimeId={} namespace={} timeout={}s", runtimeId, namespace, timeoutSec);
+
+        return Mono.<RuntimeSnapshot>create(sink -> {
+            java.util.concurrent.atomic.AtomicBoolean done = new java.util.concurrent.atomic.AtomicBoolean(false);
+            boolean alreadyReady = kubernetesClient.pods().inNamespace(namespace)
+                    .withLabel("runtimeId", runtimeId)
+                    .list().getItems().stream().anyMatch(this::podReady);
+            if (alreadyReady) {
+                log.info("pod 已就绪 (list 命中): runtimeId={}", runtimeId);
+                sink.success(snapshot);
+                return;
+            }
+            final io.fabric8.kubernetes.client.Watch[] watchRef = new io.fabric8.kubernetes.client.Watch[1];
+            watchRef[0] = kubernetesClient.pods().inNamespace(namespace)
+                    .withLabel("runtimeId", runtimeId)
+                    .watch(new io.fabric8.kubernetes.client.Watcher<>() {
+                        @Override
+                        public void eventReceived(Action action, Pod pod) {
+                            if (podReady(pod)) {
+                                log.info("pod Ready (watch 命中): runtimeId={} pod={} action={}",
+                                        runtimeId, pod.getMetadata().getName(), action);
+                                if (done.compareAndSet(false, true)) {
+                                    sink.success(snapshot);
+                                }
+                                watchRef[0].close();
+                            }
+                        }
+
+                        @Override
+                        public void onClose(io.fabric8.kubernetes.client.WatcherException cause) {
+                            if (cause != null && done.compareAndSet(false, true)) {
+                                sink.error(cause);
+                            }
+                        }
+                    });
+            sink.onDispose(watchRef[0]::close);
+        }).timeout(Duration.ofSeconds(timeoutSec))
+          .onErrorResume(err -> {
+              if (err instanceof java.util.concurrent.TimeoutException) {
+                  log.error("watch pod Ready 超时: runtimeId={} ({}s)", runtimeId, timeoutSec);
+              }
+              return Mono.error(err);
+          });
+    }
+
+    private boolean podReady(Pod pod) {
+        if (pod.getStatus() == null || pod.getStatus().getConditions() == null) {
+            return false;
+        }
+        return pod.getStatus().getConditions().stream()
+                .anyMatch(c -> "Ready".equals(c.getType()) && "True".equals(c.getStatus()));
     }
 
     @Override
@@ -123,6 +186,16 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
                                 .withContainerPort(runtime.getAgent().getPort())
                                 .build()
                 ))
+                .withNewReadinessProbe()
+                .withNewHttpGet()
+                .withPath("/global/health")
+                .withPort(new io.fabric8.kubernetes.api.model.IntOrString(runtime.getAgent().getPort()))
+                .endHttpGet()
+                .withInitialDelaySeconds(0)
+                .withPeriodSeconds(1)
+                .withTimeoutSeconds(1)
+                .withFailureThreshold(3)
+                .endReadinessProbe()
                 .withNewResources()
                 .withRequests(Map.of(
                         "cpu", io.fabric8.kubernetes.api.model.Quantity.parse(runtime.getResources().getRequests().getCpu()),
@@ -202,7 +275,7 @@ public class K8sRuntimeOperatorImpl implements K8sRuntimeOperator {
             }
         }
 
-        snapshot.setStatus("running");
+        // status 由调用方 RuntimeService 状态机管理 (PENDING -> CREATING -> RUNNING -> READY).
         snapshot.setUpdatedAt(Instant.now());
         return snapshot;
     }

@@ -1,11 +1,14 @@
 package com.taichu.gateway.controller;
 
+import com.taichu.gateway.event.SseEventStream;
 import com.taichu.gateway.model.RuntimeSnapshot;
 import com.taichu.gateway.service.RuntimeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -15,6 +18,7 @@ import reactor.core.publisher.Mono;
  * 路由:
  *   POST   /runtime        创建 Runtime
  *   GET    /runtime        查询当前用户的 Runtime
+ *   GET    /runtime/events SSE 事件流 (状态广播)
  *   DELETE /runtime        删除 Runtime
  *   POST   /runtime/restart  重启 Runtime
  *
@@ -28,12 +32,10 @@ import reactor.core.publisher.Mono;
 public class RuntimeController {
 
     private final RuntimeService runtimeService;
+    private final SseEventStream sseEventStream;
 
     /**
      * 创建 Runtime.
-     *
-     * @param userId 用户 ID (来自 x-user-id Header)
-     * @return 运行时快照
      */
     @PostMapping
     public Mono<ResponseEntity<RuntimeSnapshot>> create(@RequestHeader("x-user-id") String userId) {
@@ -45,9 +47,6 @@ public class RuntimeController {
 
     /**
      * 查询当前用户的 Runtime.
-     *
-     * @param userId 用户 ID
-     * @return 运行时快照
      */
     @GetMapping
     public Mono<ResponseEntity<RuntimeSnapshot>> get(@RequestHeader("x-user-id") String userId) {
@@ -58,10 +57,24 @@ public class RuntimeController {
     }
 
     /**
-     * 删除 Runtime.
+     * SSE 平台事件流. yunyan-agent 同模式: 4 子流 (initial / events / heartbeat / renewal).
+     * 客户端订阅以被动感知 runtime 状态变更, 避免轮询 /global/health.
      *
-     * @param userId 用户 ID
-     * @return 删除结果
+     * EventSource 浏览器限制不能设自定义 header, 故 userId / runtimeId 通过 query param 传递.
+     */
+    @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<org.springframework.http.codec.ServerSentEvent<String>> streamEvents(
+            @RequestHeader(value = "x-user-id", required = false) String userIdHeader,
+            @RequestParam(value = "userId", required = false) String userIdParam) {
+        String userId = userIdHeader != null ? userIdHeader : userIdParam;
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required (x-user-id header or ?userId=)");
+        }
+        return sseEventStream.buildForUser(userId);
+    }
+
+    /**
+     * 删除 Runtime.
      */
     @DeleteMapping
     public Mono<ResponseEntity<Void>> delete(@RequestHeader("x-user-id") String userId) {
@@ -75,9 +88,6 @@ public class RuntimeController {
 
     /**
      * 重启 Runtime.
-     *
-     * @param userId 用户 ID
-     * @return 新快照
      */
     @PostMapping("/restart")
     public Mono<ResponseEntity<RuntimeSnapshot>> restart(@RequestHeader("x-user-id") String userId) {
