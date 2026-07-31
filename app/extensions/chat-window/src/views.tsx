@@ -128,6 +128,12 @@ const ChatWindow = () => {
         if (r.ok) {
           const d = await r.json();
           setSessionTitle(d.title || d.slug || '');
+        } else if (r.status === 404) {
+          // sandbox 重建/换 user 后旧 sessionId 失效, 清 localStorage + 清空 sessionId
+          console.warn('[chat-window] session 已失效 (sandbox 重建), 清 localStorage:', sessionID);
+          try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* noop */ }
+          setSessionID('');
+          setError('会话已失效（sandbox 已重建），请新建对话');
         }
       } catch { /* ignore */ }
     })();
@@ -162,8 +168,17 @@ const ChatWindow = () => {
       const list = (data || []).slice().sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
       setRows(list);
       setError('');
-    } catch (e) {
-      setError(String(e?.message || e));
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      // 404 / "session not found" → sandbox 重建导致旧 session 失效, 清 localStorage
+      if (/404|not\s*found/i.test(msg)) {
+        console.warn('[chat-window] 拉消息时 session 已失效, 清 localStorage:', id);
+        try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* noop */ }
+        setSessionID('');
+        setError('会话已失效（sandbox 已重建），请新建对话');
+      } else {
+        setError(msg);
+      }
     }
   }, []);
 

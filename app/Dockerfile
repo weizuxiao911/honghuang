@@ -4,6 +4,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund --ignore-scripts
 
+ARG EXTENSION_REGISTRY_URL=http://registry.taichu.localhost
+ENV EXTENSION_REGISTRY_URL=${EXTENSION_REGISTRY_URL}
+
 COPY tsconfig.json webpack.config.js ./
 COPY src ./src
 COPY extensions ./extensions
