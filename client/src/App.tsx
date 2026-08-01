@@ -4,45 +4,36 @@ import { AppRenderer } from '@codeblitzjs/ide-core';
 import '@codeblitzjs/ide-core/bundle/codeblitz.css';
 import '@codeblitzjs/ide-core/languages';
 
-import { ComponentRegistry } from '@opensumi/ide-core-browser';
 
-import { TopBar } from './components/TopBar';
-import { slots } from './config/slots';
+import { TopBarModule, slots } from './config/slots';
 import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';
 import './styles/overrides.css';
 
 /**
- * client 入口 — 只渲染 CodeBlitz AppRenderer, 不写业务逻辑。
+ * 框架级 chrome 注册 — 把 TopBar 注册进 SlotLocation.top
  *
- * onLoad 里做一件事: 把框架级 chrome TopBar 注册成 top slot 模块
- * (ComponentRegistry.register('tc-topbar', ...)), slots.ts 的 layoutConfig[top].modules
- * 已声明 'tc-topbar'; layout.tsx 用 SlotRenderer slot='top' 渲染。
+ * 与官方 @opensumi/ide-menu-bar 同一机制:
+ *   - TopBarModule 是 BrowserModule, providers 里注册 TopBarContribution
+ *   - TopBarContribution @Domain(ComponentContribution), registerComponent 里
+ *     registry.register('tc-topbar', { id, component })
+ *   - slots.ts 的 layoutConfig[SlotLocation.top].modules = ['tc-topbar']
+ *   - layout.tsx 的 SlotRenderer slot='top' 渲染
  *
- * 具体业务能力由 VSIX 自身按 contributes.views / sumiContributes.browserViews.{slot}
- * 等标准机制注册, client 不编排任何 VSIX。
+ * 业务能力由 VSIX 通过 contributes.views 等标准机制注册, client 不编排 VSIX。
  */
+
+
 export const App: React.FC = () => {
   return (
     <AppRenderer
       appConfig={{
         ...slots,
         defaultPreferences: preferences,
+        // TopBarModule 提供 TopBarContribution (注册 tc-topbar 组件到 top slot)
+        modules: [TopBarModule],
       }}
       runtimeConfig={runtimeConfig as any}
-      onLoad={(app) => {
-        try {
-          const injector: any = (app as any).injector;
-          const componentRegistry: any = injector.get(ComponentRegistry);
-          componentRegistry.register('tc-topbar', {
-            id: 'tc-topbar',
-            title: 'TopBar',
-            component: TopBar,
-          });
-        } catch (error) {
-          console.warn('[Taichu] 注册 TopBar 到 top slot 失败', error);
-        }
-      }}
     />
   );
 };
