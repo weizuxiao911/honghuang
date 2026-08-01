@@ -12,7 +12,7 @@ Taichu（太初）是一套把成熟开源组件（OpenSumi / OpenCode / Kuberne
 - **调度平面**：Spring Cloud Gateway + K8s 编排，按用户/租户隔离沙箱。
 - **Agent 运行平面**：标准化 Docker 镜像 + OpenCode 运行时，按需加载业务 Agent 插件。
 
-## 四模块
+## 模块划分
 
 | 模块 | 路径 | 职责 | 技术栈 |
 |------|------|------|--------|
@@ -23,19 +23,16 @@ Taichu（太初）是一套把成熟开源组件（OpenSumi / OpenCode / Kuberne
 
 完整产品使用闭环与胶水哲学详述见 [`设计文档.md`](./设计文档.md)。
 
-## 参考资料
+## 运行示例
 
-`docs/` 目录保留前期对底层开源组件（OpenSumi / OpenCode / Kubernetes）能力边界、技术选型、关键权衡的实测结论文档集。阅读入口：[`docs/README.md`](./docs/README.md)。
+![运行示例](./assets/image.png)
 
-`docs/` 仅作只读参考资料，不作为正式工程的实现入口。
+本地 K8s 全栈启动后，浏览器访问 `http://app.taichu.localhost` 即可看到上图所示界面：左侧会话列表、中央编辑器欢迎页（marquee 大字标题）、右侧 Agent 对话面板；右上角为用户头像与 GitHub OAuth 登录入口。
 
-## 当前状态
+## 致谢
 
-四模块均已就位并包含 README / AGENTS / 部署清单；源码与镜像可按各模块目录内的说明构建、部署与验证。
-
-## 文档职责分层
-
-- `README.md`（本文件）：面向人，描述产品定位、四模块结构、参考资料位置。
-- `AGENTS.md`：面向 AI，定义跨模块的协作、决策、执行、文档一致性约束。
-- `设计文档.md`：产品蓝图（唯一事实源），所有正式工程以此为准。
-- 各模块 `README.md` / `AGENTS.md`：模块自身的边界、接口、约束与 AI 工作规则。
+- [OpenSumi](https://opensumi.com) / [CodeBlitz](https://github.com/opensumi/codeblitz) — 浏览器内 IDE 内核与扩展宿主。
+- [OpenCode](https://opencode.ai) — Agent 运行时与 MCP / A2UI 协议。
+- [Kubernetes](https://kubernetes.io) / [Fabric8](https://fabric8.io) — 容器编排与 Java 客户端。
+- [Spring Cloud Gateway](https://spring.io/projects/spring-cloud-gateway) / [Spring WebFlux](https://spring.io) — 反应式网关。
+- [Trae](https://www.trae.ai) — 容器布局与深色 UI 风格参考。
