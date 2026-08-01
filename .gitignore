@@ -4,6 +4,9 @@ node_modules/
 # 过程产物统一放 .cache/（不入库）
 .cache/
 
+# Playwright MCP 本地工具产物（截图 / 快照 / 控制台日志等）
+.playwright-mcp/
+
 # 调研产物（.poc/）整目录忽略
 .poc/
 
