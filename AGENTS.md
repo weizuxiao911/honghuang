@@ -22,6 +22,7 @@ Taichu（太初）：开箱即用通用 Agent 产品基座。**胶水哲学**为
 8. **中文优先**。文档、接口说明、用户可见文案以中文为主。
 9. **命名规范**。本仓库统一命名为 Taichu（太初；一级目录 `taichu/`）；模块一级目录固定为 `app/` / `registry/` / `gateway/` / `agent-image/`。`紫府/琅嬛/太虚/洞府` 与 `zifu/langhuan/taixu/dongfu` 等旧命名不再出现于正式文档、配置、代码注释与提交信息。
 10. **全局一致性**。功能设计 / 架构设计 / README / AGENTS / 四模块 README&AGENTS 任一改动后，核对其余部分同步。
+11. **Git 操作必须由用户决策**。`git commit` / `git push` / `git reset` / `git rebase` / `git revert` / `git tag` / 任何会改写历史或写入远端的命令，AI 不得自主执行；必须先在 `question` 工具里给出候选方案（commit message / 影响范围 / 是否 push）等待用户拍板。即便同一会话之前被授权过类似动作，下一次仍需重新决策，不沿用"已通过"的默认。
 
 ## 四模块边界速查
 
@@ -109,3 +110,4 @@ Taichu（太初）：开箱即用通用 Agent 产品基座。**胶水哲学**为
   - RuntimeService 状态机、SSE 协议契约、agent-image 镜像 tag 等核心运行时契约变更
   - 公开 HTTP/SDK API 路径或参数变更（chat-window / session-manager / opencode 调用 gateway 的契约）
   - 与本文件「铁律」冲突或扩展
+  - **任何 git commit / push / rebase / reset / tag**（铁律 11 已固化），即便是"看起来无害的修复 commit"
