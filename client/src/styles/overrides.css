@@ -63,3 +63,32 @@
 [class*="design-editor_tab_block_container"] {
   border-radius: 0 !important;
 }
+
+/* BoxPanel + SplitPanel 各槽位间的视觉间隔:
+   CodeBlitz 用 flex 布局 slot, 加 gap 让 left/main/right/bottom 之间有透明间隔, 跟整体深色分离感 */
+[class*="box-panel"] {
+  gap: 4px !important;
+}
+[class*="split-panel"] {
+  gap: 4px !important;
+}
+
+/* 各槽位背景分层: 让 top 跟 codeblitz-root 区分色, 视觉上独立 */
+.tc-topbar {
+  background: #2d3139 !important;
+}
+
+/* 各 split 槽位间不强制加 border, 留给框架默认处理 */
+[class*="split-panel"] {
+  border-radius: 0 !important;
+}
+
+/* 文件树 / 侧栏 panel 内所有元素不要 1px 边线(用户反馈看着很乱) */
+[class*="file_tree"],
+[class*="file-tree"],
+[class*="pane-header"],
+[class*="pane_content"],
+[class*="pane-content"],
+[class*="panel-tab"] {
+  border: none !important;
+}
