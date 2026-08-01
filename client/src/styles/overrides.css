@@ -58,3 +58,8 @@
 [class*="container___njvHL"] {
   display: none !important;
 }
+
+/* 编辑器 active tab 背景透明, 跟 IDE 整体统一 */
+[class*="design-editor_tab_block_container"][class*="active"] {
+  background-color: transparent !important;
+}
