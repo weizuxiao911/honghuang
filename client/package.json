@@ -1,5 +1,5 @@
 {
-  "name": "taichu-app",
+  "name": "taichu-client",
   "version": "0.1.0",
   "private": true,
   "description": "Taichu app 前端容器：CodeBlitz 纯前端 IDE 骨架（零业务），业务全部由 VSIX 承载",

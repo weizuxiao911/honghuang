@@ -9,7 +9,6 @@ ENV EXTENSION_REGISTRY_URL=${EXTENSION_REGISTRY_URL}
 
 COPY tsconfig.json webpack.config.js ./
 COPY src ./src
-COPY extensions ./extensions
 
 RUN npm run build
 

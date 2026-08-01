@@ -10,6 +10,9 @@ node_modules/
 # 调研产物（.poc/）整目录忽略
 .poc/
 
+# 调研文档（docs/）整目录忽略 —— 历史 POC 文档，不纳入主干
+docs/
+
 # registry 收集的 .vsix 包（构建时由 npm run build 重新生成）
 registry/vsix/*.vsix
 
@@ -17,8 +20,8 @@ registry/vsix/*.vsix
 app/dist/
 app/out/
 app/*.vsix
-app/extensions/*/out/
-app/extensions/*/*.vsix
+extensions/*/out/
+extensions/*/*.vsix
 registry/dist/
 registry/build/
 registry/*.jar

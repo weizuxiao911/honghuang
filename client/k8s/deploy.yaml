@@ -1,35 +1,35 @@
 ---
-# app 命名空间
+# client 命名空间
 apiVersion: v1
 kind: Namespace
 metadata:
   name: taichu-infra
   labels:
-    app: app
+    client: client
     module: taichu
 ---
-# app ConfigMap: 用户持久化 .env 所在 hostpath + gateway 等运行时配置
+# client ConfigMap: 用户持久化 .env 所在 hostpath + gateway 等运行时配置
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: app-config
+  name: client-config
   namespace: taichu-infra
   labels:
-    app: app
+    client: client
     module: taichu
 data:
   GATEWAY_URL: "http://gateway.taichu.localhost"
   RUNTIME_HOST_SUFFIX: "runtime.taichu.localhost"
   DEPLOY_ENV: "dev"
 ---
-# app Deployment
+# client Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: app
+  name: client
   namespace: taichu-infra
   labels:
-    app: app
+    client: client
     app.kubernetes.io/component: platform
     app.kubernetes.io/part-of: taichu
 spec:
@@ -40,17 +40,18 @@ spec:
       maxSurge: 1
       maxUnavailable: 0
   selector:
+
     matchLabels:
-      app: app
+      client: client
   template:
     metadata:
       labels:
-        app: app
+        client: client
         app.kubernetes.io/component: platform
     spec:
       containers:
-        - name: app
-          image: taichu/app:dev
+        - name: client
+          image: taichu/client:dev
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -58,7 +59,7 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: app-config
+                name: client-config
           env:
             - name: ENV_FILE
               value: /etc/taichu/.env
@@ -92,17 +93,17 @@ spec:
       volumes:
         - name: user-env
           hostPath:
-            path: /tmp/taichu-app
+            path: /tmp/taichu-client
             type: DirectoryOrCreate
 ---
-# app Service
+# client Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: app
+  name: client
   namespace: taichu-infra
   labels:
-    app: app
+    client: client
 spec:
   type: ClusterIP
   ports:
@@ -111,13 +112,14 @@ spec:
       targetPort: http
       protocol: TCP
   selector:
-    app: app
+
+    client: client
 ---
-# app Ingress: app.taichu.localhost -> app Service
+# client Ingress: client.taichu.localhost
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: app-ingress
+  name: client-ingress
   namespace: taichu-infra
   labels:
     app.kubernetes.io/component: platform
@@ -129,13 +131,13 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: app.taichu.localhost
+    - host: client.taichu.localhost
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: app
+                name: client
                 port:
                   number: 80

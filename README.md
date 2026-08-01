@@ -16,7 +16,8 @@ Taichu（太初）是一套把成熟开源组件（OpenSumi / OpenCode / Kuberne
 
 | 模块 | 路径 | 职责 | 技术栈 |
 |------|------|------|--------|
-| **app** | [`app/`](./app/) | 交互平面底层容器宿主；纯前端标准化交互底座 | OpenSumi/CodeBlitz、纯浏览器 |
+| **client** | [`client/`](./client/) | 交互平面底层容器宿主；纯前端标准化交互底座 | OpenSumi/CodeBlitz、纯浏览器 |
+| **extensions** | [`extensions/`](./extensions/) | 业务 VSIX 源码；按 VS Code 兼容扩展标准开发，独立于 client 上架到 registry | TypeScript + VSIX Manifest |
 | **registry** | [`registry/`](./registry/) | VSIX 插件资产分发中心；版本管控、灰度、CDN | Spring Boot、MySQL、Redis、OSS、CDN |
 | **gateway** | [`gateway/`](./gateway/) | 全局调度平面；流量网关 + K8s 运行时编排中枢 | Spring Cloud Gateway、WebFlux、Fabric8、Redis |
 | **agent-image** | [`agent-image/`](./agent-image/) | Agent 运行平面最小隔离单元；单用户独享 Pod 沙箱 | 标准化 Docker 镜像、OpenCode、MCP、A2UI |

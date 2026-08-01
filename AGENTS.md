@@ -20,24 +20,28 @@ Taichu（太初）：开箱即用通用 Agent 产品基座。**胶水哲学**为
 6. **过程产物统一 `.cache/`**。临时截图、playwright 快照、采样日志、probe 输出、playwright-mcp 工具产物（如 `*.png` / `*.yml` / 控制台日志）均放 `taichu/.cache/`。**禁止写到仓库根目录、子模块根目录、正式工程路径**——AI 工具链（playwright-mcp / curl 输出重定向 / `>` 写入等）默认走仓库根时会污染提交面，必须显式指定 `.cache/<类目>/<文件名>`（如 `.cache/playwright/taichu-landing.png`、`.cache/curl/registry-metadata.json`）。该规矩同时也体现在 `.gitignore` 里。
 7. **敏感信息不入库**。凭证、API Key、Token 不入库；运行时数据目录已 gitignore。
 8. **中文优先**。文档、接口说明、用户可见文案以中文为主。
-9. **命名规范**。本仓库统一命名为 Taichu（太初；一级目录 `taichu/`）；模块一级目录固定为 `app/` / `registry/` / `gateway/` / `agent-image/`。`紫府/琅嬛/太虚/洞府` 与 `zifu/langhuan/taixu/dongfu` 等旧命名不再出现于正式文档、配置、代码注释与提交信息。
+9. **命名规范**。本仓库统一命名为 Taichu（太初；一级目录 `taichu/`）；模块一级目录固定为 `client/` / `extensions/` / `registry/` / `gateway/` / `agent-image/`。`app/` 旧命名不再出现于正式文档、配置、代码注释与提交信息（`紫府/琅嬛/太虚/洞府` 与 `zifu/langhuan/taixu/dongfu` 等也按同规则处理）。
 10. **全局一致性**。功能设计 / 架构设计 / README / AGENTS / 四模块 README&AGENTS 任一改动后，核对其余部分同步。
 11. **Git 操作必须由用户决策**。`git commit` / `git push` / `git reset` / `git rebase` / `git revert` / `git tag` / 任何会改写历史或写入远端的命令，AI 不得自主执行；必须先在 `question` 工具里给出候选方案（commit message / 影响范围 / 是否 push）等待用户拍板。即便同一会话之前被授权过类似动作，下一次仍需重新决策，不沿用"已通过"的默认。
+12. **VSIX 必须按 VS Code 兼容扩展标准开发**。VSIX 是 VS Code 扩展包格式（vsce / open-vsx 标准），OpenSumi/CodeBlitz 通过实现 VS Code 扩展协议来加载它；**不允许**把 VSIX 当成 OpenSumi 私有扩展标准来开发。
+    - `package.json` 强制声明 `engines.vscode`
+    - **视图挂载只能走 VS Code 定义的 view container 类型**（`activitybar` / `sidebar` / `panel` / `auxBar` / `editor` 等）。如果 OpenSumi 没有对应的 view container，**必须按 VS Code 标准暴露出来**（框架的责任，不是 VSIX 绕路用 `sumiContributes.*`）
+    - 业务能力走 `contributes.commands` / `contributes.views` / `contributes.viewsContainers` / `contributes.menus` 等 VS Code 标准字段
+    - OpenSumi 扩展点（`sumiContributes.*`）只用于 runtime 入口（`workerMain` / `browserMain`），不用于 view 挂载；OpenSumi 的 slot 命名（top/left/main 等）是 OpenSumi 内部实现细节，不属于 VSIX 标准字段
+    - **这是必须项，不是可选项**
 
 ## 四模块边界速查
 
 | 模块 | 做 | 不做 |
 |------|----|------|
-| **app** | 布局骨架、窗口生命周期、插件宿主、通信总线、SSE 接收 | 业务逻辑、Agent 推理、直接文件读写 |
+| **client** | 布局骨架、窗口生命周期、插件宿主、通信总线、SSE 接收 | 业务逻辑、Agent 推理、直接文件读写 |
 | **registry** | VSIX 元数据、版本、灰度、CDN 分发、RBAC 裁剪 | Agent 任务执行、K8s 调度、运行时业务 |
 | **gateway** | 网关转发、K8s Pod 生命周期、Redis 双索引、TTL 回收、SSE 反代 | 前端渲染、A2UI 协议解析、插件资产存储 |
 | **agent-image** | Agent 推理、工具调用、MCP 反向调用、A2UI 输出 | 调度决策、插件分发、UI 渲染 |
 
 ## 参考资料
 
-- `docs/`、`docs/README.md`：保留前期对底层开源组件的实测文档集。**只读参考**，不修改、不删除。
-- `docs/` 的实测结论由 AI 在会话中自行消化，不必写进正式工程文档。
-- 正式工程文档（README/AGENTS/功能设计/架构设计/子模块 README/AGENTS）**不得**再以任何路径、链接、注释、命令示例形式引用 `.poc/` 或 `poc-*` 等运行产物。`.poc/` 整目录已从入库中移除，仅作本地保留。
+- 正式工程文档（README/AGENTS/功能设计/架构设计/子模块 README/AGENTS）**不得**再以任何路径、链接、注释、命令示例形式引用 `.poc/` / `poc-*` / `docs/` 等运行产物。`.poc/` 与 `docs/` 整目录已从入库中移除，仅作本地保留。
 
 ## K8s 本地测试规则（docker-desktop）
 
@@ -99,7 +103,7 @@ Taichu（太初）：开箱即用通用 Agent 产品基座。**胶水哲学**为
 - **直接做**：
   - 修复 taichu 模块的拼写/格式/注释错误
   - 调整 `application.yml`、K8s 清单中的非语义参数值（副本数、timeout、CPU/Mem）
-  - 收敛旧命名（铁律 9）至 `app/` / `registry/` / `gateway/` / `agent-image/`
+  - 收敛旧命名（铁律 9）至 `client/` / `extensions/` / `registry/` / `gateway/` / `agent-image/`
   - 模块 README / AGENTS / 功能设计/架构设计的结构性补全
 
 - **必须用 `question` 确认**：

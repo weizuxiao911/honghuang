@@ -62,17 +62,22 @@ export function activate(context: vscode.ExtensionContext) {
     dispatch('newFile'),
   );
 
-  // 等一帧让 views.js 把全局注册完成
-  setTimeout(() => {
+  // views.js 由 OpenSumi 单独加载, 不一定在 extension.ts 同一帧 ready;
+  // 轮询 10 次 (每 50ms) 等 views 把 __TAICHU_LANDING_COMPONENT__ 挂上 window
+  let attempts = 0;
+  const timer = setInterval(() => {
+    attempts++;
     const Comp = getLandingComponent();
     if (Comp) {
+      clearInterval(timer);
       (window as any).__TAICHU_LANDING__ = Comp;
       window.dispatchEvent(new CustomEvent('taichu:landing-registered'));
-      log('registered __TAICHU_LANDING__');
-    } else {
-      log('no __tcLandingFactory found on window');
+      log(`registered __TAICHU_LANDING__ after ${attempts} attempts`);
+    } else if (attempts >= 10) {
+      clearInterval(timer);
+      log('gave up after 10 attempts; no __TAICHU_LANDING_COMPONENT__');
     }
-  }, 0);
+  }, 50);
 }
 
 export function deactivate() {
