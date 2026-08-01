@@ -25,7 +25,7 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
     },
     [SlotLocation.right]: { modules: [] },
     [SlotLocation.main]: { modules: ['@opensumi/ide-editor'] },
-    [SlotLocation.bottom]: { modules: ['@opensumi/ide-output', '@opensumi/ide-markers'] },
+    [SlotLocation.bottom]: { modules: [] },
     [SlotLocation.statusBar]: { modules: ['@opensumi/ide-status-bar'] },
     [SlotLocation.extra]: { modules: [] },
   } as any,
