@@ -52,3 +52,9 @@
 [class*="design-kt_editor"] {
   background: transparent !important;
 }
+
+/* CodeBlitz 默认 welcome 页面("Codeblitz / 基于 OpenSumi 的纯前端版 IDE 框架" 大字)隐藏;
+   client 不写欢迎页, 默认 welcome 留空即可。 */
+[class*="container___njvHL"] {
+  display: none !important;
+}
