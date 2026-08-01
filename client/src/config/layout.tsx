@@ -1,30 +1,24 @@
 import React from 'react';
 import { SlotLocation, SlotRenderer } from '@opensumi/ide-core-browser';
-import { BoxPanel, getStorageValue, SplitPanel } from '@opensumi/ide-core-browser/lib/components';
+import { BoxPanel, SplitPanel } from '@opensumi/ide-core-browser/lib/components';
 
-import { TopBar } from '../components/TopBar';
-
+/**
+ * client 默认 LayoutComponent — 由 CodeBlitz 在 layoutConfig[SlotLocation.*] 之外提供顶层布局壳。
+ *
+ * 设计定位: client 是框架,不写自定义 chrome(TopBar / Sidebar / 状态栏等都走框架默认或 VSIX 注入);
+ *   这里只保留框架默认 BoxPanel + SplitPanel 装配槽位,代码量最小。
+ */
 export function LayoutComponent(): React.ReactElement {
-  const { layout } = getStorageValue() as any;
-  // 首屏策略：左侧默认展开（280），右侧 chat 面板默认展开（420），底部折叠。
-  // storage 里如果显式记录过尺寸就沿用；`fixLayout` 会把无 size 的记录清成 currentId=''，
-  // 所以 truthy 判断只对已经拖动过的宽度生效。
-  const leftSize = layout?.left?.currentId === '' ? 49 : layout?.left?.size || 280;
-  const rightSize = layout?.right?.currentId === '' ? 49 : layout?.right?.size || 420;
-  const bottomSize = layout?.bottom?.currentId ? layout?.bottom?.size || 200 : 24;
-
   return React.createElement(
     BoxPanel,
     { direction: 'top-to-bottom' },
-    // 顶部 Trae 风格标题栏（React 组件替代 SlotRenderer）
-    React.createElement(TopBar, null),
     React.createElement(
       SplitPanel,
       { overflow: 'hidden', id: 'main-horizontal', flex: 1 },
       React.createElement(SlotRenderer as any, {
         slot: SlotLocation.left,
         isTabbar: true,
-        defaultSize: leftSize,
+        defaultSize: 280,
         minResize: 204,
         minSize: 49,
       }),
@@ -37,17 +31,17 @@ export function LayoutComponent(): React.ReactElement {
           minResize: 160,
           slot: SlotLocation.bottom,
           isTabbar: true,
-          defaultSize: bottomSize,
-        })
+          defaultSize: 200,
+        }),
       ),
       React.createElement(SlotRenderer as any, {
         slot: SlotLocation.right,
         isTabbar: true,
-        defaultSize: rightSize,
+        defaultSize: 420,
         minResize: 280,
         minSize: 49,
-      })
+      }),
     ),
-    React.createElement(SlotRenderer, { slot: SlotLocation.statusBar })
+    React.createElement(SlotRenderer, { slot: SlotLocation.statusBar }),
   );
 }

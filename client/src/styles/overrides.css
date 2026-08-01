@@ -9,36 +9,30 @@ codeblitz-root {
   background: #0d0f12 !important;
 }
 
-/* 完整面板：含 tab 栏 + 内容区，统一背景 + 小圆角 */
+/* 完整面板：含 tab 栏 + 内容区，统一背景，无圆角 */
 [class*="container_wrap___"] {
   background: #16181d !important;
-  border-radius: 2px;
+  border-radius: 0;
   overflow: hidden;
 }
 
 [class*="kt_editor_component_wrapper___"] {
   background: #16181d !important;
-  border-radius: 0 0 2px 2px;
+  border-radius: 0;
   overflow: hidden;
 }
 
 /* 各 slot 的 tab container（底部/左/右 slot）统一背景，
-   避免底部"问题/输出"等横条颜色与面板不一致。 */
+    避免底部"问题/输出"等横条颜色与面板不一致。 */
 [class*="tab_container___"] {
   background: #16181d !important;
-  border-radius: 2px;
+  border-radius: 0;
 }
 
-/* 底部"问题/输出"终端区：去掉顶部圆角，与编辑器底部直角对接 */
-[class*="tab_container___"][class*="design_bottom_slot"] {
-  border-radius: 0 0 2px 2px;
-}
-
-/* 编辑器顶部 tab 栏（"欢迎使用 ×" 那一行）：去掉顶部圆角，
-   与编辑器 wrapper 顶部直角对齐；同时统一背景为面板色。 */
+/* 编辑器顶部 tab 栏（"欢迎使用 ×" 那一行）：统一背景为面板色。 */
 [class*="editorGroupHeader___"] {
   background: #16181d !important;
-  border-radius: 0 0 2px 2px;
+  border-radius: 0;
 }
 
 /* —— 原有有用规则（精简时误删，现恢复） —— */
