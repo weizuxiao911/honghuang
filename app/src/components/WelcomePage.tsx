@@ -2,9 +2,14 @@ import React from 'react';
 
 /**
  * Taichu欢迎页
- * 覆盖 CodeBlitz 默认 editor-empty 组件（Codeblitz logo + slogan）。
+ * 覆盖 CodeBlitz 默认 editor-empty 组件。品牌区为 taowhale 风格
+ * 大字 marquee 横向滚动效果（无缝循环）。
  */
 export const WelcomePage: React.FC = () => {
+  // 重复一次实现无缝 marquee
+  const marqueePhrase =
+    'Taichu · The open foundation for universal Agent products · 通用 Agent 产品基座 · ';
+  const marquee = marqueePhrase.repeat(4);
   return (
     <div className="app-welcome">
       <style>{`
@@ -18,38 +23,39 @@ export const WelcomePage: React.FC = () => {
           background: transparent;
           color: var(--foreground);
           user-select: none;
+          gap: 32px;
         }
-        .app-welcome__brand {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 48px;
+        .app-welcome__marquee {
+          overflow: hidden;
+          width: 100%;
+          -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
         }
-        .app-welcome__logo {
-          width: 56px;
-          height: 56px;
-          border-radius: 14px;
-          background: linear-gradient(135deg, #8b5cf6, #6366f1);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #fff;
-          font-size: 28px;
-          font-weight: 600;
-          letter-spacing: -0.02em;
-          box-shadow: 0 8px 24px rgba(99, 102, 241, 0.28);
+        .app-welcome__marquee-track {
+          display: inline-flex;
+          white-space: nowrap;
+          animation: app-marquee 28s linear infinite;
+          will-change: transform;
         }
-        .app-welcome__title {
-          font-size: 28px;
-          font-weight: 500;
-          letter-spacing: 0.02em;
-          color: var(--foreground);
+        .app-welcome__marquee-text {
+          font-size: 52px;
+          font-weight: 700;
+          letter-spacing: -0.01em;
+          line-height: 1.1;
+          background: linear-gradient(90deg, #ffffff 0%, rgba(255,255,255,.85) 50%, #ffffff 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
         }
-        .app-welcome__subtitle {
-          font-size: 13px;
+        @keyframes app-marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-25%); }
+        }
+        .app-welcome__sub {
+          font-size: 12px;
           color: var(--descriptionForeground);
-          line-height: 1.6;
+          letter-spacing: 0.04em;
+          font-weight: 300;
         }
         .app-welcome__hints {
           display: flex;
@@ -83,11 +89,12 @@ export const WelcomePage: React.FC = () => {
           color: var(--foreground);
         }
       `}</style>
-      <div className="app-welcome__brand">
-        <div className="app-welcome__logo">T</div>
-        <div className="app-welcome__title">Taichu</div>
-        <div className="app-welcome__subtitle">开箱即用通用 Agent 产品基座</div>
+      <div className="app-welcome__marquee">
+        <div className="app-welcome__marquee-track">
+          <span className="app-welcome__marquee-text">{marquee}</span>
+        </div>
       </div>
+      <div className="app-welcome__sub">/ 开箱即用通用 Agent 产品基座</div>
       <div className="app-welcome__hints">
         <div className="app-welcome__hint">
           <span>与 AI 对话</span>

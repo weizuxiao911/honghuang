@@ -1,28 +1,64 @@
-/* 洪荒 定制样式：隐藏左右侧 tab panel 顶部大标题（洪荒 会话 / 对话），
-   保持简洁。OpenSumi 的 titlebar 是 CSS Module 生成的 hash 类名，用属性选择器匹配。 */
+/* Taichu 容器样式：作用于完整面板容器（container_wrap / 编辑器 wrapper），
+   统一背景 + 小圆角。外底 codeblitz-root 设深色作为圆角外对比色。
+   vsix 不动；其他无关规则（root/活动栏/顶部栏/状态栏/resize-handle 等）已清除。 */
+
+/* —— 容器样式（本次任务） —— */
+
+/* 外底（圆角外露出色） */
+codeblitz-root {
+  background: #0d0f12 !important;
+}
+
+/* 完整面板：含 tab 栏 + 内容区，统一背景 + 小圆角 */
+[class*="container_wrap___"] {
+  background: #16181d !important;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+[class*="kt_editor_component_wrapper___"] {
+  background: #16181d !important;
+  border-radius: 0 0 2px 2px;
+  overflow: hidden;
+}
+
+/* 各 slot 的 tab container（底部/左/右 slot）统一背景，
+   避免底部"问题/输出"等横条颜色与面板不一致。 */
+[class*="tab_container___"] {
+  background: #16181d !important;
+  border-radius: 2px;
+}
+
+/* 底部"问题/输出"终端区：去掉顶部圆角，与编辑器底部直角对接 */
+[class*="tab_container___"][class*="design_bottom_slot"] {
+  border-radius: 0 0 2px 2px;
+}
+
+/* 编辑器顶部 tab 栏（"欢迎使用 ×" 那一行）：去掉顶部圆角，
+   与编辑器 wrapper 顶部直角对齐；同时统一背景为面板色。 */
+[class*="editorGroupHeader___"] {
+  background: #16181d !important;
+  border-radius: 0 0 2px 2px;
+}
+
+/* —— 原有有用规则（精简时误删，现恢复） —— */
+
+/* 隐藏左右侧 tab panel 顶部大标题（"TAICHU 会话"/"TAICHU 对话"） */
 [class*="titlebar___"] {
   display: none !important;
 }
 
-/* 右侧 tabbar 只有 chat 一个视图，图标列没有意义 → 隐藏。 */
+/* 右侧 tabbar 图标列只有 chat 一个视图，没有意义 → 隐藏。 */
 #opensumi-right-tabbar {
   display: none !important;
 }
 
-/* 编辑器面包屑（试卷.paper 二次显示）→ 隐藏。 */
+/* 编辑器面包屑 → 隐藏。 */
 .kt-navigation-container {
   display: none !important;
 }
 
-/* opensumi-design-dark-theme 自带的紫粉渐变光晕背景（design-background-dark.png）
-   与 Trae 的纯黑风格不符 → 移除 background-image，让底色由主题色变量控制。 */
+/* opensumi-design-dark-theme 自带的紫粉渐变光晕背景 → 移除 */
 [class*="box-panel___"] {
   background-image: none !important;
-}
-
-/* Trae 风格纯色底：主色深灰黑，避免渐变高光。 */
-:root {
-  --app-bg-primary: #0f1114;
-  --app-bg-sidebar: #131519;
-  --app-bg-editor: #0f1114;
 }
