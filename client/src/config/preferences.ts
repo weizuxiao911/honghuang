@@ -9,7 +9,7 @@ import type { IAppRendererProps } from '@codeblitzjs/ide-core';
 export const preferences: IAppRendererProps['appConfig']['defaultPreferences'] = {
   'general.theme': 'opensumi-design-dark-theme',
   'editor.autoSave': 'afterDelay',
-  'editor.autoSaveDelay': 1000,
+  'editor.autoSaveDelay': 200,
   'workbench.startupEditor': 'none',
   'breadcrumbs.enabled': false,
 };

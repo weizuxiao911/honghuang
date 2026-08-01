@@ -11,11 +11,13 @@ import { LayoutComponent } from './layout';
  * - layoutConfig: 8 个常用 slot 与对应 builtin module;具体业务视图由 VSIX 自己注册
  * - defaultPanels: 启动时各方向默认激活的 panel id
  */
-export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layoutComponent' | 'layoutConfig' | 'defaultPanels'> = {
+export const slots: Pick<IAppRendererProps['appConfig'],  'workspaceDir' | 'layoutComponent' | 'layoutConfig' | 'defaultPanels'> = {
   workspaceDir: 'workspace',
   layoutComponent: LayoutComponent as any,
   layoutConfig: {
-    [SlotLocation.top]: { modules: [] },
+    // tc-topbar 由 App.tsx onLoad 里 ComponentRegistry.register('tc-topbar', ...) 注册,
+    // 框架 chrome 走 slot 机制(与官方 @opensumi/ide-menu-bar 同一方式), 不硬编码在 LayoutComponent
+    [SlotLocation.top]: { modules: ['tc-topbar'] },
     [SlotLocation.action]: { modules: [] },
     [SlotLocation.left]: {
       modules: [
