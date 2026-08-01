@@ -90,3 +90,12 @@
 [class*="titleActions"]:hover {
   background: transparent !important;
 }
+
+/* editor.module.less 的 .kt_editor_tab::before/after 是 1px var(--tab-border) 横线,
+   在 active tab 边缘造成"右边差异"伪影; 全部隐藏, 让 tab 跟 IDE 统一深色背景融合 */
+[class*="design-editor_tab"]::before,
+[class*="design-editor_tab"]::after,
+[class*="design-editor_tabs_content"]::before,
+[class*="design-editor_tabs_content"]::after {
+  display: none !important;
+}
