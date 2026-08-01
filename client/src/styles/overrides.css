@@ -35,18 +35,6 @@ codeblitz-root {
   border-radius: 0;
 }
 
-/* —— 原有有用规则（精简时误删，现恢复） —— */
-
-/* 隐藏左右侧 tab panel 顶部大标题（"TAICHU 会话"/"TAICHU 对话"） */
-[class*="titlebar___"] {
-  display: none !important;
-}
-
-/* 右侧 tabbar 图标列只有 chat 一个视图，没有意义 → 隐藏。 */
-#opensumi-right-tabbar {
-  display: none !important;
-}
-
 /* 编辑器面包屑 → 隐藏。 */
 .kt-navigation-container {
   display: none !important;
@@ -55,4 +43,20 @@ codeblitz-root {
 /* opensumi-design-dark-theme 自带的紫粉渐变光晕背景 → 移除 */
 [class*="box-panel___"] {
   background-image: none !important;
+}
+
+/* 编辑器容器（容器包装、editor 组件 wrapper 等）全部清圆角 */
+[class*="design-kt_workbench_editor"] {
+  border-radius: 0px !important;
+}
+
+/* 底部 slot（问题/输出/终端面板）全部清圆角 */
+[class*="design_bottom_slot"] {
+  border-radius: 0px !important;
+}
+
+/* 槽位间的拖拽把手：左右各加 4px padding, 拖动热区更友好 */
+[class*="resize-handle-vertical"] {
+  padding-left: 4px;
+  padding-right: 4px;
 }
