@@ -16,8 +16,9 @@
   border-radius: 0;
 }
 
-/* 编辑器顶部 tab 栏（"欢迎使用 ×" 那一行）：统一背景为面板色。 */
+/* 编辑器顶部 tab 栏("欢迎使用 ×" 那一行):背景透明, 透出 codeblitz-root 统一深色 */
 [class*="editorGroupHeader___"] {
+  background: transparent !important;
   border-radius: 0;
 }
 
@@ -45,4 +46,9 @@
 [class*="resize-handle-vertical"] {
   padding-left: 4px;
   padding-right: 4px;
+}
+
+/* 编辑器容器背景透明(让 IDE 默认主题色透出) */
+[class*="design-kt_editor"] {
+  background: transparent !important;
 }
