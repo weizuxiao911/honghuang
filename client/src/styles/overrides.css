@@ -1,23 +1,11 @@
-/* Taichu 容器样式：作用于完整面板容器（container_wrap / 编辑器 wrapper），
-   统一背景 + 小圆角。外底 codeblitz-root 设深色作为圆角外对比色。
-   vsix 不动；其他无关规则（root/活动栏/顶部栏/状态栏/resize-handle 等）已清除。 */
-
-/* —— 容器样式（本次任务） —— */
-
-/* 外底（圆角外露出色） */
-codeblitz-root {
-  background: #0d0f12 !important;
-}
 
 /* 完整面板：含 tab 栏 + 内容区，统一背景，无圆角 */
 [class*="container_wrap___"] {
-  background: #16181d !important;
   border-radius: 0;
   overflow: hidden;
 }
 
 [class*="kt_editor_component_wrapper___"] {
-  background: #16181d !important;
   border-radius: 0;
   overflow: hidden;
 }
@@ -25,13 +13,11 @@ codeblitz-root {
 /* 各 slot 的 tab container（底部/左/右 slot）统一背景，
     避免底部"问题/输出"等横条颜色与面板不一致。 */
 [class*="tab_container___"] {
-  background: #16181d !important;
   border-radius: 0;
 }
 
 /* 编辑器顶部 tab 栏（"欢迎使用 ×" 那一行）：统一背景为面板色。 */
 [class*="editorGroupHeader___"] {
-  background: #16181d !important;
   border-radius: 0;
 }
 
