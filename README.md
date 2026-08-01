@@ -21,7 +21,7 @@ Taichu（太初）是一套把成熟开源组件（OpenSumi / OpenCode / Kuberne
 | **gateway** | [`gateway/`](./gateway/) | 全局调度平面；流量网关 + K8s 运行时编排中枢 | Spring Cloud Gateway、WebFlux、Fabric8、Redis |
 | **agent-image** | [`agent-image/`](./agent-image/) | Agent 运行平面最小隔离单元；单用户独享 Pod 沙箱 | 标准化 Docker 镜像、OpenCode、MCP、A2UI |
 
-完整产品使用闭环与胶水哲学详述见 [`设计文档.md`](./设计文档.md)。
+产品形态与核心价值见 [`功能设计.md`](./功能设计.md)；技术架构、分层结构、模块设计、VSIX 生命周期、接口契约、部署架构见 [`架构设计.md`](./架构设计.md)。
 
 ## 运行示例
 

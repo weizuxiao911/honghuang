@@ -1,116 +1,63 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+
+type LandingComponent = React.ComponentType<unknown> | null;
 
 /**
- * Taichu欢迎页
- * 覆盖 CodeBlitz 默认 editor-empty 组件。品牌区为 taowhale 风格
- * 大字 marquee 横向滚动效果（无缝循环）。
+ * Taichu 欢迎页 - 薄壳
+ *
+ * 框架仅提供"无文件时主编辑区"的占位 slot。本组件本身不渲染任何业务 UI;
+ * 真正内容由业务 VSIX(默认实现: taichu-landing-page)通过
+ * `window.__TAICHU_LANDING__` 全局注册,VSIX activate 后通知本组件重新渲染。
+ *
+ * 流程:
+ *   1. CodeBlitz 在编辑器空态时挂载本组件
+ *   2. 本组件检查 window.__TAICHU_LANDING__; 命中则渲染,否则显示最小 placeholder
+ *   3. 业务 VSIX 在 activate 时注册组件, 通过 'taichu:landing-registered' 事件通知
+ *   4. 本组件订阅事件后切换渲染分支
+ *
+ * 文件 IO / Agent API 都由 VSIX 处理 (VSIX 通过全局 command 与 app 通信)。
  */
 export const WelcomePage: React.FC = () => {
-  // 重复一次实现无缝 marquee
-  const marqueePhrase =
-    'Taichu · The open foundation for universal Agent products · 通用 Agent 产品基座 · ';
-  const marquee = marqueePhrase.repeat(4);
-  return (
-    <div className="app-welcome">
-      <style>{`
-        .app-welcome {
-          width: 100%;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          color: var(--foreground);
-          user-select: none;
-          gap: 32px;
-        }
-        .app-welcome__marquee {
-          overflow: hidden;
-          width: 100%;
-          -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
-          mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
-        }
-        .app-welcome__marquee-track {
-          display: inline-flex;
-          white-space: nowrap;
-          animation: app-marquee 28s linear infinite;
-          will-change: transform;
-        }
-        .app-welcome__marquee-text {
-          font-size: 52px;
-          font-weight: 700;
-          letter-spacing: -0.01em;
-          line-height: 1.1;
-          background: linear-gradient(90deg, #ffffff 0%, rgba(255,255,255,.85) 50%, #ffffff 100%);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-        }
-        @keyframes app-marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-25%); }
-        }
-        .app-welcome__sub {
-          font-size: 12px;
-          color: var(--descriptionForeground);
-          letter-spacing: 0.04em;
-          font-weight: 300;
-        }
-        .app-welcome__hints {
-          display: flex;
-          gap: 24px;
-          margin-top: 8px;
-        }
-        .app-welcome__hint {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 13px;
-          color: var(--descriptionForeground);
-        }
-        .app-welcome__kbd {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-        }
-        .app-welcome__kbd kbd {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 22px;
-          height: 22px;
-          padding: 0 6px;
-          border-radius: 5px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          font-size: 11px;
-          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-          color: var(--foreground);
-        }
-      `}</style>
-      <div className="app-welcome__marquee">
-        <div className="app-welcome__marquee-track">
-          <span className="app-welcome__marquee-text">{marquee}</span>
-        </div>
-      </div>
-      <div className="app-welcome__sub">/ 开箱即用通用 Agent 产品基座</div>
-      <div className="app-welcome__hints">
-        <div className="app-welcome__hint">
-          <span>与 AI 对话</span>
-          <span className="app-welcome__kbd">
-            <kbd>⌘</kbd>
-            <kbd>U</kbd>
-          </span>
-        </div>
-        <div className="app-welcome__hint">
-          <span>Editor 内 AI 编码</span>
-          <span className="app-welcome__kbd">
-            <kbd>⌘</kbd>
-            <kbd>I</kbd>
-          </span>
-        </div>
-      </div>
-    </div>
+  const [Landing, setLanding] = useState<LandingComponent>(
+    () => (window as any).__TAICHU_LANDING__ ?? null,
+  );
+
+  useEffect(() => {
+    const onRegistered = () => {
+      const next = (window as any).__TAICHU_LANDING__ ?? null;
+      setLanding(() => next);
+    };
+    window.addEventListener('taichu:landing-registered', onRegistered);
+    // 兜底: 已注册但事件漏掉的情况
+    const existing = (window as any).__TAICHU_LANDING__ ?? null;
+    if (existing && existing !== Landing) setLanding(() => existing);
+    return () => window.removeEventListener('taichu:landing-registered', onRegistered);
+  }, []);
+
+  if (Landing) {
+    const Comp = Landing as React.ComponentType<unknown>;
+    return React.createElement(Comp);
+  }
+
+  // 极简 placeholder: 无 VSIX 注册时, 提示用户安装/加载扩展。
+  return React.createElement(
+    'div',
+    {
+      className: 'app-welcome-empty',
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        width: '100%',
+        color: 'var(--descriptionForeground, #8b929b)',
+        fontSize: 13,
+        userSelect: 'none',
+        gap: 8,
+      },
+    },
+    React.createElement('div', { style: { fontSize: 18, color: 'var(--foreground, #e5e7eb)', fontWeight: 600 } }, '太初'),
+    React.createElement('div', null, '等待业务扩展加载...'),
   );
 };

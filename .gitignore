@@ -10,6 +10,9 @@ node_modules/
 # 调研产物（.poc/）整目录忽略
 .poc/
 
+# registry 收集的 .vsix 包（构建时由 npm run build 重新生成）
+registry/vsix/*.vsix
+
 # 正式工程（app / registry / gateway / agent-image）的预期产物占位
 app/dist/
 app/out/
