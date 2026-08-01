@@ -23,19 +23,11 @@ const log = (...args: unknown[]) =>
 // 实际渲染发生在 framework 的 WelcomePage 树中, 不是在 VSIX 自己的视图树。
 // 这样可以避免 main slot 同时存在两个内容源。
 function getLandingComponent(): React.ComponentType<unknown> | null {
-  // views.js 里通过 `exports['taichuLanding'] = LandingPage;` 挂出来
-  // CodeBlitz 加载 VSIX 后会把 browserMain 的 module exports 暴露到 vscode-extension 加载器
-  try {
-    // 触发 views 模块求值 (若尚未加载)
-    void require('../out/views.js');
-  } catch (err) {
-    log('require views.js failed:', err);
-  }
-  // OpenSumi vscode API 暴露的 extension.exports 在宿主之间不通用;
-  // 直接走 window 全局兜底 - chrome 浏览器单实例 + 同源 window, 安全。
+  // views.js 由 OpenSumi 在 activate 后异步加载, 其内部 React 解构 + window 注册
+  // 都已包了轮询; 这里直接读全局即可, 不再 require('../out/views.js') 避免
+  // 早期 React 未就绪时触发 destructure 报错。
   const Comp = (window as any).__TAICHU_LANDING_COMPONENT__;
   if (Comp) return Comp;
-  // 兜底: views 里直接挂了一个 __tcLandingFactory 全局, 在 views.js 末尾被定义。
   return (window as any).__tcLandingFactory ?? null;
 }
 
@@ -62,22 +54,22 @@ export function activate(context: vscode.ExtensionContext) {
     dispatch('newFile'),
   );
 
-  // views.js 由 OpenSumi 单独加载, 不一定在 extension.ts 同一帧 ready;
-  // 轮询 10 次 (每 50ms) 等 views 把 __TAICHU_LANDING_COMPONENT__ 挂上 window
-  let attempts = 0;
-  const timer = setInterval(() => {
-    attempts++;
-    const Comp = getLandingComponent();
-    if (Comp) {
-      clearInterval(timer);
-      (window as any).__TAICHU_LANDING__ = Comp;
-      window.dispatchEvent(new CustomEvent('taichu:landing-registered'));
-      log(`registered __TAICHU_LANDING__ after ${attempts} attempts`);
-    } else if (attempts >= 10) {
-      clearInterval(timer);
-      log('gave up after 10 attempts; no __TAICHU_LANDING_COMPONENT__');
-    }
-  }, 50);
+  // views.js 由 OpenSumi 单独加载, 可能晚于 extension.ts 同一帧 ready;
+// 等 views 自己派发的 'taichu:landing-component-ready' 事件, 设上限 12 秒兜底
+let attempts = 0;
+const timer = setInterval(() => {
+  attempts++;
+  const Comp = getLandingComponent();
+  if (Comp) {
+    clearInterval(timer);
+    (window as any).__TAICHU_LANDING__ = Comp;
+    window.dispatchEvent(new CustomEvent('taichu:landing-registered'));
+    log(`registered __TAICHU_LANDING__ after ${attempts} polls`);
+  } else if (attempts >= 240) {
+    clearInterval(timer);
+    log('gave up after 240 polls; no __TAICHU_LANDING_COMPONENT__');
+  }
+}, 50);
 }
 
 export function deactivate() {

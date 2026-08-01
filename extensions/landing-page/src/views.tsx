@@ -1,7 +1,33 @@
 // 通过 window 全局读取 host 端 (app/index.tsx) 注入的 React + ReactDOM，
 // 避免 CodeBlitz requireInterceptor 对 'react' 返回 undefined 导致 hooks 报 null。
-const React = (window as any).React;
-const { useEffect } = React;
+// React 由 CodeBlitz 注入时机晚于 views.js 模块执行, 必须轮询直到 window.React 可用
+// 才执行依赖 React 的 hooks 解构 / 全局注册; 否则 require_views() 会在扩展.ts 阶段抛错。
+let React: any = (window as any).React;
+let useEffect: any;
+function bindReact() {
+  if (React && React.useEffect) return true;
+  React = (window as any).React;
+  if (!React) return false;
+  useEffect = React.useEffect;
+  return true;
+}
+// 立即尝试一次 (OpenSumi 加载浏览器主入口时 window.React 多半已就绪)
+if (bindReact()) {
+  // OK
+} else {
+  // 延后到 React 可用再继续: 轮询 50ms / 200 次 (10 秒)
+  let attempts = 0;
+  const timer = setInterval(() => {
+    attempts++;
+    if (bindReact()) {
+      clearInterval(timer);
+      registerGlobals();
+    } else if (attempts >= 200) {
+      clearInterval(timer);
+      console.warn('>>>[landing-page][views] gave up waiting for window.React');
+    }
+  }, 50);
+}
 
 const CSS = `
 .tc-lp { display:flex; align-items:center; justify-content:center; height:100%; width:100%; box-sizing:border-box; background:radial-gradient(ellipse at 65% 35%, rgba(112,130,200,.10) 0%, transparent 55%), radial-gradient(ellipse at 25% 75%, rgba(60,80,130,.10) 0%, transparent 55%), linear-gradient(180deg, #0f131a 0%, #0a0d12 100%); color:var(--foreground, #e5e7eb); font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select:none; overflow-y:auto; padding:48px 24px; }
@@ -217,5 +243,13 @@ exports['taichuLanding'] = LandingPage;
 
 // 同时挂一个全局工厂, 让 app/src WelcomePage 薄壳可以拉到这个组件;
 // VSIX 的 extension.ts activate() 会把这个工厂搬到 window.__TAICHU_LANDING__
-window.__tcLandingFactory = (props) => LandingPage(props);
-window.__TAICHU_LANDING_COMPONENT__ = LandingPage;
+// 仅在 React 可用后才注册 (避免扩展.ts 早期调用时 window.React undefined)
+function registerGlobals() {
+  window.__tcLandingFactory = (props: any) => LandingPage(props);
+  window.__TAICHU_LANDING_COMPONENT__ = LandingPage;
+  window.dispatchEvent(new CustomEvent('taichu:landing-component-ready'));
+  console.log('>>>[landing-page][views] registered __TAICHU_LANDING_COMPONENT__');
+}
+if (React && useEffect) {
+  registerGlobals();
+}
