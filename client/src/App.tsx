@@ -5,7 +5,8 @@ import '@codeblitzjs/ide-core/bundle/codeblitz.css';
 import '@codeblitzjs/ide-core/languages';
 
 
-import { TopBarModule, slots } from './config/slots';
+import { slots } from './config/slots';
+import { TopBarModule } from './components/topbar';
 import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';
 import './styles/overrides.css';
@@ -30,7 +31,8 @@ export const App: React.FC = () => {
       appConfig={{
         ...slots,
         defaultPreferences: preferences,
-        // TopBarModule 提供 TopBarContribution (注册 tc-topbar 组件到 top slot)
+        // 注入 TopBarModule: BrowserModule 里 TopBarContribution 才会被 DI 收集
+        // 并 registerComponent('tc-topbar') 注册到 top slot
         modules: [TopBarModule],
       }}
       runtimeConfig={runtimeConfig as any}

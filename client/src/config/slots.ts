@@ -1,8 +1,6 @@
 import type { IAppRendererProps } from '@codeblitzjs/ide-core';
 import { SlotLocation } from '@opensumi/ide-core-browser';
 
-import { LayoutComponent } from './layout';
-
 /**
  * 槽位与布局配置 — CodeBlitz 容器怎么排版
  *
@@ -15,8 +13,7 @@ import { LayoutComponent } from './layout';
  * 这里只声明模块 id ('tc-topbar') 挂到 SlotLocation.top。
  */
 export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layoutComponent' | 'layoutConfig' | 'defaultPanels'> = {
-  workspaceDir: 'workspace',
-  layoutComponent: LayoutComponent as any,
+  workspaceDir: '/',
   layoutConfig: {
     // tc-topbar 由 client/src/components/topbar/index.ts 的 TopBarModule 注册,
     // 这里用模块 id 挂到 top slot (与官方 @opensumi/ide-menu-bar 同一机制)
