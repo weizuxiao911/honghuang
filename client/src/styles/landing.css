@@ -1,0 +1,161 @@
+/* Taichu main area landing layout primitives
+ *
+ * 用于 editor 空态时(无文件打开)渲染的 Trae 风格布局:
+ *   - 顶部 5 颗动作按钮(图标 + 标题 + 副标题) 纵向堆叠
+ *   - 中间 4 行最近项目(文件夹图标 + 名称 + 路径右对齐)
+ *   - 背景深色径向 + 线性渐变
+ *
+ * 严格控制 spacing / gap / padding, 跟 IDE 整体深色统一。
+ * 实际内容(图标 / 文字 / 数据)由调用方传入; 框架只提供样式与排版规则。
+ *
+ * 类名约定:
+ *   .tc-landing                - 容器, 居中全屏
+ *   .tc-landing__inner         - 内部列, max-width 620px
+ *   .tc-landing__actions       - 5 颗动作按钮堆叠 (gap 10px)
+ *   .tc-landing__action        - 单个动作 (padding 14px 18px, gap 14px)
+ *   .tc-landing__action-icon   - 36x36 圆角图标
+ *   .tc-landing__action-text   - 文字列 (gap 2px)
+ *   .tc-landing__action-title  - 标题
+ *   .tc-landing__action-sub    - 副标题
+ *   .tc-landing__recents       - 4 行最近项目 (gap 4px)
+ *   .tc-landing__recent        - 单行 (padding 10px 12px, gap 12px)
+ *   .tc-landing__recent-icon   - 18x18 文件夹图标
+ *   .tc-landing__recent-name  - 名称
+ *   .tc-landing__recent-path   - 路径(右对齐)
+ *   .tc-landing__hint          - 底部提示文字
+ */
+
+.tc-landing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 48px 24px;
+  color: var(--foreground, #e5e7eb);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  user-select: none;
+  background:
+    radial-gradient(ellipse at 70% 30%, rgba(112, 130, 200, 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse at 25% 75%, rgba(60, 80, 130, 0.10) 0%, transparent 55%),
+    linear-gradient(180deg, #0f131a 0%, #0a0d12 100%);
+}
+
+.tc-landing__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  width: 100%;
+  max-width: 620px;
+}
+
+/* —— 5 颗动作按钮堆叠 —— */
+.tc-landing__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tc-landing__action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: rgba(20, 24, 32, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.tc-landing__action:hover {
+  background: rgba(36, 42, 56, 0.85);
+  border-color: rgba(139, 158, 220, 0.35);
+}
+
+.tc-landing__action:active {
+  transform: translateY(1px);
+}
+
+.tc-landing__action-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  flex-shrink: 0;
+}
+
+.tc-landing__action-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tc-landing__action-title {
+  font-weight: 500;
+}
+
+.tc-landing__action-sub {
+  font-size: 12px;
+  color: var(--descriptionForeground, #8b929b);
+}
+
+/* —— 4 行最近项目 —— */
+.tc-landing__recents {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tc-landing__recent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease;
+}
+
+.tc-landing__recent:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tc-landing__recent-icon {
+  width: 18px;
+  height: 18px;
+  color: #c9b88d;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+.tc-landing__recent-name {
+  color: inherit;
+}
+
+.tc-landing__recent-path {
+  margin-left: auto;
+  color: var(--descriptionForeground, #8b929b);
+  font-size: 12px;
+}
+
+.tc-landing__hint {
+  font-size: 11px;
+  color: var(--descriptionForeground, #8b929b);
+  opacity: 0.7;
+  text-align: center;
+}
