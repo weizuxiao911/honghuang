@@ -2,16 +2,22 @@ import React from 'react';
 import { SlotLocation, SlotRenderer } from '@opensumi/ide-core-browser';
 import { BoxPanel, SplitPanel } from '@opensumi/ide-core-browser/lib/components';
 
+import { TopBar } from '../components/TopBar';
+
 /**
  * client 默认 LayoutComponent — 由 CodeBlitz 在 layoutConfig[SlotLocation.*] 之外提供顶层布局壳。
  *
- * 设计定位: client 是框架,不写自定义 chrome(TopBar / Sidebar / 状态栏等都走框架默认或 VSIX 注入);
- *   这里只保留框架默认 BoxPanel + SplitPanel 装配槽位,代码量最小。
+ * 装配顺序: 顶部 TopBar (框架 chrome) → 主区(left / main / bottom / right 四块 SplitPanel) → 底部 statusBar
+ *
+ * 设计定位: client 提供框架级 chrome (TopBar), 不写业务逻辑; SlotRenderer 留给 VSIX 通过
+ *   contributes.views / viewsContainers + sumiContributes.browserViews.{slot} 注入具体内容。
  */
 export function LayoutComponent(): React.ReactElement {
   return React.createElement(
     BoxPanel,
     { direction: 'top-to-bottom' },
+    // 顶部框架 chrome (太初品牌 + 工作区/搜索/设置占位, 实际行为由 VSIX 注入)
+    React.createElement(TopBar, null),
     React.createElement(
       SplitPanel,
       { overflow: 'hidden', id: 'main-horizontal', flex: 1 },
