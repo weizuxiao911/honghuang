@@ -62,4 +62,31 @@
 /* 编辑器 active tab 背景透明, 跟 IDE 整体统一 */
 [class*="design-editor_tab_block_container"][class*="active"] {
   background-color: transparent !important;
+  border-radius: 0 !important;
+}
+
+/* inactive tab 也清圆角 + 透明, 跟 active 一致 */
+[class*="design-editor_tab_block_container"] {
+  border-radius: 0 !important;
+}
+
+/* 编辑器右上角 actions 工具区 (e.g. split / more 按钮) 背景透明 */
+[class*="editor_actions"] {
+  background: transparent !important;
+}
+
+/* close × 按钮 + actions 工具按钮 + popover-trigger 等交互控件:
+   任何状态(默认 / hover / focus / active)背景都透明, 跟 IDE 统一深色一致 */
+[class*="close_tab"],
+[class*="kt_editor_close_icon"],
+.kt-popover-trigger,
+.titleActions,
+[class*="titleActions"] {
+  background: transparent !important;
+}
+[class*="close_tab"]:hover,
+.kt-popover-trigger:hover,
+.titleActions:hover,
+[class*="titleActions"]:hover {
+  background: transparent !important;
 }
