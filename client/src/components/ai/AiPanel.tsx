@@ -2,132 +2,83 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 import {
   getAiClient,
+  isAiReady,
   aiCreateSession,
   aiListSessions,
   aiListMessages,
   aiSendMessage,
   aiAbort,
+  aiDeleteSession,
+  aiDeleteAllSessions,
   aiListAgents,
   aiSwitchAgent,
   aiReplyQuestion,
+  aiRejectQuestion,
+  aiListModels,
+  aiListProviders,
 } from '../../commands/ai/api';
-
-/**
- * AI 助手面板 — right 槽位默认 webview (components/ai/)
- *
- * 参考实现: web-opencode-agent/webview (Trae 风格)
- * https://github.com/weizuxiao911/taichu/tree/main/client (本地)
- * https://web-opencode-agent/webview/src/ui/AssistantHistoryMessage/renderParts.tsx
- *
- * 架构:
- *   消息流 = Message[] (每个含 parts: Part[])
- *   Part 分发按 part.type:
- *     - text      → MarkdownRenderer (流式打字机)
- *     - reasoning → 可折叠 (默认折叠, 流式时展开)
- *     - tool      → getToolRenderKind(tool.tool):
- *         - 'question'   → QuestionToolView (A2UI 选项弹窗)
- *         - 'todowrite'  → TodowriteToolView (任务列表)
- *         - 'subagent'   → SubAgentToolView (子 agent banner)
- *         - 'default'    → DefaultToolGroupView (可折叠, input/output)
- *
- * 事件驱动: SDK client 从 window.__TAICHU_OPENCODE__ 读 (commands/opencode 事件驱动)
- * 不 import opencode 模块.
- *
- * SDK v2 数据结构示例:
- *   Message.parts: Part[] = TextPart | ReasoningPart | ToolPart | StepStartPart | ...
- *   ToolPart.tool: 'bash' | 'read' | 'write' | 'edit' | 'todowrite' | 'question' | 'task' | 'subagent' | ...
- *   ToolPart.state.status: 'pending' | 'running' | 'completed' | 'error'
- *   ToolPart.state.input: 工具输入
- *   ToolPart.state.output: 工具输出
- *   ToolPart.state.metadata: { todos?: Todo[], answers?: string[][], sessionId?: string }
- */
+import { PartRenderer } from './parts/PartRenderer';
+import { extractAssistantTodos } from './parts/TodoCard';
+import { ModelPicker } from './parts/ModelPicker';
+import { QuestionModal } from './parts/QuestionModal';
+import { modelPrefs } from '../../commands/ai/modelPrefs';
 
 interface Row {
   id: string;
   role: 'user' | 'assistant';
-  text: string;
-  parts?: any[];       // OpenCode Message.parts
+  parts: any[];
   error?: any;
-  streaming?: boolean; // 流式中
 }
 
-type ToolRenderKind = 'question' | 'subagent' | 'todowrite' | 'default';
+const HIDDEN_AGENTS = new Set(['compaction', 'title', 'summary']);
 
-function isQuestionToolName(toolName: string): boolean {
-  return toolName === 'question' || toolName.toLowerCase().includes('question');
-}
-function isSubAgentTaskToolName(toolName: string): boolean {
-  if (!toolName) return false;
-  const n = toolName.toLowerCase();
-  return n === 'task' || n === 'subagent' || n === 'subagent_task';
-}
-function isTodoWriteToolName(toolName: string): boolean {
-  return toolName === 'todowrite' || toolName.toLowerCase() === 'todowrite';
-}
-function getToolRenderKind(toolName: string): ToolRenderKind {
-  if (isQuestionToolName(toolName)) return 'question';
-  if (isSubAgentTaskToolName(toolName)) return 'subagent';
-  if (isTodoWriteToolName(toolName)) return 'todowrite';
-  return 'default';
-}
+const AGENT_ICONS: Record<string, string> = {
+  build: '🔨',
+  plan: '🗺',
+  general: '✨',
+  explore: '🔭',
+};
 
-// 从 ToolPart.state.metadata 提取 todos (与 webview 一致)
-function extractAssistantTodos(value: any): Array<{ content: string; status: string; priority?: string }> {
-  if (!value) return [];
-  const arr = (value as any)?.todos ?? (Array.isArray(value) ? value : null);
-  if (!Array.isArray(arr) || arr.length === 0) return [];
-  const items: Array<{ content: string; status: string; priority?: string }> = [];
-  for (const e of arr) {
-    if (!e || typeof e !== 'object') continue;
-    const content = (e as any).content;
-    const status = (e as any).status;
-    const priority = (e as any).priority;
-    if (typeof content !== 'string' || content.trim().length === 0) continue;
-    const normalizedStatus =
-      status === 'completed' || status === 'in_progress' || status === 'pending'
-        ? status
-        : 'pending';
-    items.push({
-      content: content.trim(),
-      status: normalizedStatus,
-      priority: typeof priority === 'string' ? priority.trim().toLowerCase() : undefined,
-    });
-  }
-  return items;
-}
+const AGENT_DESC: Record<string, string> = {
+  build: '执行任务 · 文件操作 · 命令执行',
+  plan: '规划方案 · 任务拆解 (只读工具)',
+  general: '通用问答 · 多步任务并行执行',
+  explore: '信息检索 · 上下文探索',
+};
 
-// 从 ToolPart.state 提取 question (v2 QuestionV2Info[] 格式)
-function extractQuestions(part: any): Array<{ question: string; header?: string; options: Array<{ label: string; description: string }> }> | null {
-  const candidates = [
-    part?.state?.output,
-    part?.state?.input,
-    part?.state?.status === 'pending' ? part?.state?.raw : null,
-  ];
-  for (const cand of candidates) {
-    const v = typeof cand === 'string' ? (() => { try { return JSON.parse(cand); } catch { return null; } })() : cand;
-    const qs = (v as any)?.questions;
-    if (Array.isArray(qs) && qs.length > 0 && qs.every((q: any) => typeof q.question === 'string' && Array.isArray(q.options))) {
-      return qs.map((q: any) => ({
-        question: q.question,
-        header: q.header,
-        options: q.options.map((o: any) => ({
-          label: typeof o === 'string' ? o : (o.label ?? String(o)),
-          description: typeof o === 'object' ? (o.description ?? '') : '',
-        })),
-      }));
+function findCurrentTodos(parts: any[]): Array<{ content: string; status: string; priority?: string }> {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    if (p?.type === 'tool' && String(p.tool || '').toLowerCase() === 'todowrite') {
+      const todos = extractAssistantTodos(p?.state?.output)
+        .concat(extractAssistantTodos(p?.state?.input));
+      if (todos.length) return todos;
     }
   }
-  return null;
+  return [];
 }
 
-// 从 part 提取 requestID
-function extractRequestId(part: any): string {
-  return (
-    part?.state?.metadata?.requestID ??
-    part?.state?.metadata?.requestId ??
-    part?.id
-  );
+function extractText(parts: any[] | undefined): string {
+  if (!Array.isArray(parts)) return '';
+  return parts
+    .filter((p) => p?.type === 'text' && !p?.synthetic && !p?.ignored)
+    .map((p) => p.text || '')
+    .join('');
 }
+
+function formatDuration(start?: number, end?: number): string {
+  if (!start || !end) return '';
+  const ms = end - start;
+  if (ms < 1000) return `${ms}ms`;
+  const sec = Math.round(ms / 100) / 10;
+  return `${sec}秒`;
+}
+
+/** question part ID -> { requestID, questions } (模块级, 供 AiPanel SSE 写入 + MessageRow 读取) */
+const questionStore = new Map<string, { requestID: string; questions: any[] }>();
+/** 触发 MessageRow 重渲染以读取新写入的 questionStore */
+const questionSubscribers = new Set<() => void>();
+function notifyQuestionChange() { questionSubscribers.forEach((fn) => fn()); }
 
 export const AiPanel: React.FC = () => {
   const [sessionID, setSessionID] = useState<string>('');
@@ -137,35 +88,126 @@ export const AiPanel: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [agents, setAgents] = useState<any[]>([]);
   const [currentAgent, setCurrentAgent] = useState<string>('build');
+  const [models, setModels] = useState<any[]>([]);
+  const [providers, setProviders] = useState<any[]>([]);
+  const [, setModelsRefresh] = useState(0);
+  const [currentModel, setCurrentModel] = useState<string>('');
   const [showSessions, setShowSessions] = useState(false);
+  const [showAgents, setShowAgents] = useState(false);
+  const [showModels, setShowModels] = useState(false);
+  const [showCommands, setShowCommands] = useState(false);
+  const [showMentions, setShowMentions] = useState(false);
+  /** question part ID -> { requestID, questions } 来自 question.v2.asked 事件 */
+  const [, setQuestionRev] = useState(0);
+  const [activeQuestion, setActiveQuestion] = useState<{ requestID: string; questions: any[] } | null>(null);
+  useEffect(() => {
+    const sub = () => setQuestionRev((n) => n + 1);
+    questionSubscribers.add(sub);
+    return () => { questionSubscribers.delete(sub); };
+  }, []);
+  const [attachments, setAttachments] = useState<Array<{ name: string; path: string }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [modelQuery, setModelQuery] = useState('');
+  const [mentionQuery, setMentionQuery] = useState('');
   const [error, setError] = useState('');
+  const [ready, setReady] = useState<boolean>(() => isAiReady());
   const sessionIDRef = useRef(sessionID);
   sessionIDRef.current = sessionID;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const modelSearchRef = useRef<HTMLInputElement>(null);
 
-  // 初始化: 加载 subagent 列表
+  // ready 状态
   useEffect(() => {
+    const check = () => setReady(isAiReady());
+    check();
+    window.addEventListener('taichu:opencode-ready', check);
+    window.addEventListener('taichu:fs-ready', check);
+    const id = window.setInterval(check, 1500);
+    return () => {
+      window.removeEventListener('taichu:opencode-ready', check);
+      window.removeEventListener('taichu:fs-ready', check);
+      window.clearInterval(id);
+    };
+  }, []);
+
+  // 加载 agent/model 列表
+  useEffect(() => {
+    if (!ready) return;
     (async () => {
       try {
         const list = await aiListAgents();
         setAgents(list || []);
+        if (list?.length) {
+          const first = list.find((a: any) => {
+            const id = a.id || a.name;
+            const mode = a.mode || a.data?.mode;
+            return id && !HIDDEN_AGENTS.has(id) && (mode === 'primary' || mode === 'all');
+          }) || list[0];
+          if (!list.find((a: any) => (a.id || a.name) === currentAgent)) {
+            setCurrentAgent(first.id || first.name);
+          }
+        }
       } catch (e) { console.warn('[ai] load agents failed', e); }
+      try {
+        const m = await aiListModels();
+        setModels(m || []);
+        if (m?.length) {
+          const prefs = modelPrefs.get();
+          // 优先: 用户配置的默认 → 当前选 → 第一个
+          const def = prefs.default && m.find((x: any) => x.id === prefs.default);
+          if (def) {
+            setCurrentModel(def.id);
+          } else if (!m.find((x: any) => x.id === currentModel)) {
+            setCurrentModel(m[0].id);
+          }
+        }
+      } catch (e) { console.warn('[ai] load models failed', e); }
+      try {
+        const ps = await aiListProviders();
+        setProviders(ps || []);
+      } catch (e) { console.warn('[ai] load providers failed', e); }
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
-  // 监听 taichu:ai-reveal (TopBar 右栏 toggle 展开) → focus
   useEffect(() => {
-    const onReveal = () => {
-      setTimeout(() => {
-        const ta = document.querySelector('.tc-ai__input textarea');
-        (ta as HTMLTextAreaElement | null)?.focus();
-      }, 100);
-    };
+    const onReveal = () => setTimeout(() => taRef.current?.focus(), 120);
     window.addEventListener('taichu:ai-reveal', onReveal);
-    return () => window.removeEventListener('taichu:ai-reveal', onReveal);
+    const onPrefs = () => setModelsRefresh((n) => n + 1);
+    window.addEventListener('taichu:ai-modelPrefs-changed', onPrefs);
+    return () => {
+      window.removeEventListener('taichu:ai-reveal', onReveal);
+      window.removeEventListener('taichu:ai-modelPrefs-changed', onPrefs);
+    };
   }, []);
 
-  // 加载历史会话
+  // 打开模型选择时自动聚焦搜索框
+  useEffect(() => {
+    if (showModels) setTimeout(() => modelSearchRef.current?.focus(), 30);
+  }, [showModels]);
+
+  // 点外部关闭弹层
+  useEffect(() => {
+    if (!showAgents && !showModels && !showSessions) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('.tc-ai__mpop')
+        || t.closest('.tc-ai__agent-pop')
+        || t.closest('.tc-ai__menu')
+        || t.closest('[data-ai-pop="agents"]')
+        || t.closest('[data-ai-pop="models"]')
+        || t.closest('[data-ai-pop="sessions"]')) {
+        return;
+      }
+      setShowAgents(false);
+      setShowModels(false);
+      setShowSessions(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showAgents, showModels, showSessions]);
+
   const loadSessions = useCallback(async () => {
     try {
       const list = await aiListSessions();
@@ -173,7 +215,6 @@ export const AiPanel: React.FC = () => {
     } catch (e) { setError(String((e as any)?.message || e)); }
   }, []);
 
-  // 加载会话消息
   const loadMessages = useCallback(async (sid?: string) => {
     const target = sid || sessionIDRef.current;
     if (!target) { setRows([]); return; }
@@ -181,33 +222,59 @@ export const AiPanel: React.FC = () => {
       const msgs = await aiListMessages(target);
       const rs: Row[] = (msgs || []).map((m: any) => {
         const info = m.info || m;
-        const parts = m.parts || info?.parts;
-        const text = extractText(parts);
         return {
           id: info?.id || m.id,
           role: info?.role || m.role,
-          text,
-          parts: parts || [],
+          parts: m.parts || info?.parts || [],
         };
       });
       setRows(rs);
     } catch (e) { setError(String((e as any)?.message || e)); }
-  }, [sessionID]);
+  }, []);
 
-  // 会话切换 → 加载消息
   useEffect(() => {
-    if (sessionID) {
-      loadMessages(sessionID);
-    } else {
-      setRows([]);
-    }
+    if (sessionID) loadMessages(sessionID); else setRows([]);
   }, [sessionID, loadMessages]);
 
-  // SSE 监听 — global.event 流
+  // 启动后默认显示最近一次会话
+  const skipAutoLoad = useRef(false);
   useEffect(() => {
+    if (!ready || sessionID || skipAutoLoad.current) return;
+    (async () => {
+      try {
+        const list = await aiListSessions();
+        setSessions(list || []);
+        const last = (list || [])[0];
+        if (last?.id) {
+          setSessionID(last.id);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [ready, sessionID]);
+
+  // 打字机效果: busy 时每 500ms 轮询拉取完整消息, 覆盖渲染 (文本逐渐增长)
+  useEffect(() => {
+    if (!busy || !sessionID) return;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        await loadMessages(sessionID);
+      } catch { /* ignore */ }
+      if (!stopped) timer = setTimeout(tick, 500);
+    };
+    let timer = setTimeout(tick, 500);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [busy, sessionID, loadMessages]);
+
+  // SSE
+  useEffect(() => {
+    if (!ready) return;
     let cancelled = false;
     let stream: any = null;
-
     (async () => {
       while (!cancelled) {
         try {
@@ -217,9 +284,7 @@ export const AiPanel: React.FC = () => {
             if (cancelled) break;
             handleEvent(ev?.payload ?? ev);
           }
-        } catch {
-          /* reconnect */
-        }
+        } catch { /* reconnect */ }
         if (cancelled) break;
         await new Promise((r) => setTimeout(r, 2000));
       }
@@ -231,42 +296,89 @@ export const AiPanel: React.FC = () => {
       const cur = sessionIDRef.current;
       const evSid = props.sessionID || props.info?.sessionID || props.part?.sessionID;
       if (evSid && cur && evSid !== cur) return;
-
       switch (type) {
         case 'message.part.delta': {
-          // 流式文本增量 (text part) — append
+          // 打字机核心: 逐字 append 到对应 text part
           const { messageID, partID, field, delta } = props;
           if (field !== 'text' || typeof delta !== 'string') return;
-          setRows((prev) =>
-            prev.map((r) =>
-              r.id === messageID && r.parts
-                ? {
-                    ...r,
-                    parts: r.parts.map((p: any) =>
-                      p.id === partID && p.type === 'text'
-                        ? { ...p, text: (p.text || '') + delta }
-                        : p
-                    ),
-                    text: extractText(r.parts.map((p: any) =>
-                      p.id === partID && p.type === 'text' ? { ...p, text: (p.text || '') + delta } : p
-                    )),
-                  }
-                : r
-            )
-          );
+          setRows((prev) => prev.map((r) => {
+            if (r.id !== messageID || !r.parts) return r;
+            return {
+              ...r,
+              parts: r.parts.map((p: any) =>
+                p.id === partID && p.type === 'text'
+                  ? { ...p, text: (p.text || '') + delta }
+                  : p
+              ),
+            };
+          }));
           break;
         }
-        case 'message.part.updated':
+        case 'message.part.updated': {
+          // part 状态变化 (tool 完成等) — 若 part 是 text 且非流式, 直接同步; 流式中的 text 由 delta 驱动
+          const part = props.part;
+          const messageID = props.messageID || props.part?.messageID || props.part?.message_id;
+          if (!part || !messageID) {
+            if (cur) loadMessages(cur);
+            break;
+          }
+          setRows((prev) => {
+            const idx = prev.findIndex((r) => r.id === messageID);
+            if (idx === -1) {
+              // 新消息: 插入 assistant 空壳 (让 delta 能命中)
+              return [...prev, { id: messageID, role: part.role === 'user' ? 'user' : 'assistant', parts: [part] }];
+            }
+            const row = prev[idx];
+            const pIdx = row.parts?.findIndex((p: any) => p.id === part.id);
+            if (pIdx === -1) {
+              // 新 part 追加 (非 text 直接完整加入)
+              const parts = [...(row.parts || []), part];
+              return [...prev.slice(0, idx), { ...row, parts }, ...prev.slice(idx + 1)];
+            }
+            if (part.type === 'text') {
+              // text part: 保留 delta 已累积的 text, 只更新其他字段
+              const parts = row.parts.map((p: any, i: number) =>
+                i === pIdx ? { ...p, ...part, text: p.text || part.text } : p
+              );
+              return [...prev.slice(0, idx), { ...row, parts }, ...prev.slice(idx + 1)];
+            }
+            const parts = row.parts.map((p: any, i: number) => (i === pIdx ? part : p));
+            return [...prev.slice(0, idx), { ...row, parts }, ...prev.slice(idx + 1)];
+          });
+          break;
+        }
         case 'message.updated': {
-          // 全量或局部更新 — 触发 reload 当前消息(避免复杂的增量合并)
-          if (cur) loadMessages(cur);
+          // 全量消息更新 — 事件里的 info 通常不含 parts, 只更新元数据;
+          // 消息不存在则插空壳等轮询/delta 填充, 已有消息保留本地累积
+          const info = props.info;
+          const messageID = props.messageID || info?.id;
+          if (!info || !messageID) {
+            if (cur) loadMessages(cur);
+            break;
+          }
+          const newParts = info.parts || props.parts || [];
+          setRows((prev) => {
+            const idx = prev.findIndex((r) => r.id === messageID);
+            if (idx === -1) {
+              // 新消息: 若有完整 parts 直接插入, 否则空壳 (由 delta/轮询填充)
+              return [...prev, { id: messageID, role: info.role, parts: newParts }];
+            }
+            // 已有: 仅当服务端带 parts 才合并更新, 否则不动 (保护本地流式累积)
+            if (!newParts.length) return prev;
+            const row = prev[idx];
+            const merged = newParts.map((p: any) => {
+              if (p.type !== 'text') return p;
+              const local = row.parts?.find((lp: any) => lp.id === p.id);
+              return local ? { ...p, text: local.text || p.text } : p;
+            });
+            return [...prev.slice(0, idx), { ...row, parts: merged }, ...prev.slice(idx + 1)];
+          });
           break;
         }
         case 'message.removed':
-        case 'message.part.removed': {
+        case 'message.part.removed':
           if (cur) loadMessages(cur);
           break;
-        }
         case 'session.status': {
           const stype = typeof props.status === 'string' ? props.status : props.status?.type;
           setBusy(stype !== 'idle');
@@ -280,11 +392,29 @@ export const AiPanel: React.FC = () => {
           setError(props.error?.data?.message || props.error?.message || '会话出错');
           break;
         case 'question.asked':
-        case 'question.v2.asked':
-          // question 已在 part 渲染 (当 tool=question 时), 这里不需要单独处理
+        case 'question.v2.asked': {
+          // 事件带 id (que_xxx) + questions — 真正的问题数据源
+          const rid = props.id || props.requestID;
+          const partID = props.part?.id;
+          if (rid && Array.isArray(props.questions) && props.questions.length > 0) {
+            setActiveQuestion({ requestID: rid, questions: props.questions });
+            if (partID) {
+              questionStore.set(partID, { requestID: rid, questions: props.questions });
+              notifyQuestionChange();
+            }
+          }
           break;
-        default:
+        }
+        case 'question.replied':
+        case 'question.v2.replied':
+        case 'question.rejected':
+        case 'question.v2.rejected':
+        case 'session.aborted':
+          questionStore.clear();
+          setActiveQuestion(null);
+          notifyQuestionChange();
           break;
+        default: break;
       }
     }
 
@@ -292,48 +422,74 @@ export const AiPanel: React.FC = () => {
       cancelled = true;
       stream?.return?.(undefined);
     };
-  }, [loadMessages]);
+  }, [loadMessages, ready]);
 
-  // 自动滚动
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [rows, busy]);
 
   const onNewSession = useCallback(async () => {
+    if (!ready) return;
     try {
       const sid = await aiCreateSession();
       setSessionID(sid);
       setRows([]);
       setShowSessions(false);
     } catch (e) { setError(String((e as any)?.message || e)); }
-  }, []);
+  }, [ready]);
+
+  const selectedModel = useMemo(() => {
+    if (!currentModel) return null;
+    return models.find((m: any) => m.id === currentModel) || null;
+  }, [models, currentModel]);
+
+  const currentModelLabel = useMemo(() => {
+    if (!selectedModel) return '';
+    return selectedModel.name || selectedModel.id || '';
+  }, [selectedModel]);
 
   const onSend = useCallback(async () => {
     const text = input.trim();
     if (!text || busy) return;
     setInput('');
     setError('');
+    // 附件路径附到消息尾部, 让 AI 感知已上传文件
+    const attachNote = attachments.length
+      ? '\n\n[已上传文件]\n' + attachments.map((a) => `- ${a.path}`).join('\n')
+      : '';
+    const fullText = text + attachNote;
     const localId = `local-${Date.now()}`;
-    // 立即显示用户消息 (乐观)
-    setRows((prev) => [...prev, { id: localId, role: 'user', text, parts: [{ type: 'text', text }] }]);
+    setRows((prev) => [...prev, { id: localId, role: 'user', parts: [{ type: 'text', text: fullText }] }]);
+    setAttachments([]);
     try {
       let sid = sessionID;
       if (!sid) {
         sid = await aiCreateSession();
         setSessionID(sid);
       }
-      await aiSendMessage(sid, text, currentAgent);
+      const model = selectedModel
+        ? { providerID: selectedModel.providerID, modelID: selectedModel.id }
+        : undefined;
+      await aiSendMessage(sid, fullText);
       setBusy(true);
     } catch (e) {
       setRows((prev) => prev.filter((r) => r.id !== localId));
       setInput(text);
       setError(String((e as any)?.message || e));
     }
-  }, [input, busy, sessionID, currentAgent]);
+  }, [input, busy, sessionID, currentAgent, selectedModel, attachments]);
 
-  const onAbort = useCallback(async () => {
-    if (!sessionID) return;
-    try { await aiAbort(sessionID); } catch (e) { setError(String((e as any)?.message || e)); }
+  const onAbort = useCallback(async (sid?: string) => {
+    const target = sid || sessionID;
+    if (!target) return;
+    try {
+      await aiAbort(target);
+      setBusy(false);
+    } catch (e) {
+      // abort 是用户主动操作, 服务端报错(已无活动请求等)属正常, 不弹错误
+      console.warn('[ai] abort:', e);
+      setBusy(false);
+    }
   }, [sessionID]);
 
   const onSwitchSession = useCallback((sid: string) => {
@@ -342,485 +498,1467 @@ export const AiPanel: React.FC = () => {
     setRows([]);
   }, []);
 
+  const onDeleteSession = useCallback(async (sid: string) => {
+    try {
+      await aiDeleteSession(sid);
+      setSessions((prev) => prev.filter((s) => s.id !== sid));
+      if (sid === sessionID) {
+        setSessionID('');
+        setRows([]);
+      }
+    } catch (e) { setError(String((e as any)?.message || e)); }
+  }, [sessionID]);
+
   const onSwitchAgent = useCallback(async (agent: string) => {
     setCurrentAgent(agent);
+    setShowAgents(false);
     if (sessionID) {
       try { await aiSwitchAgent(sessionID, agent); } catch (e) { setError(String((e as any)?.message || e)); }
     }
   }, [sessionID]);
 
-  const onReplyQuestion = useCallback(async (sid: string, rid: string, answers: any) => {
+  const onReplyQuestion = useCallback(async (sid: string, rid: string, answers: string[][]) => {
+    await aiReplyQuestion(sid, rid, answers);
+    // 刷新消息流, 让 question part 状态更新 (显示已答折叠卡片)
+    if (sid) { try { await loadMessages(sid); } catch { /* ignore */ } }
+  }, [loadMessages]);
+
+  const onIgnoreQuestion = useCallback(async (rid: string) => {
     try {
-      await aiReplyQuestion(sid, rid, answers);
-    } catch (e) { setError(String((e as any)?.message || e)); }
+      await aiRejectQuestion(sessionID, rid);
+      // 刷新消息流, 让 question part 状态更新 (显示已忽略)
+      if (sessionID) { try { await loadMessages(sessionID); } catch { /* ignore */ } }
+    } catch (e) {
+      // 取消是用户主动操作, 失败不弹错误 (AI 可能已自行处理)
+      console.warn('[ai] reject question:', e);
+    }
+  }, [sessionID]);
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      onSend();
+    }
+  }, [onSend]);
+
+  const onUploadFile = useCallback(async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    const cmd = (window as any).__TAICHU_FS_API__?.write;
+    if (!cmd) { setError('沙箱文件系统未就绪'); return; }
+    const added: Array<{ name: string; path: string }> = [];
+    for (const f of Array.from(files)) {
+      try {
+        const text = await f.text();
+        const safe = f.name.replace(/[^\w.\-\u4e00-\u9fa5]/g, '_');
+        const path = `/workspace/${safe}`;
+        await cmd(path, text);
+        added.push({ name: f.name, path });
+      } catch (e) {
+        setError(`上传 ${f.name} 失败: ${String((e as any)?.message || e)}`);
+      }
+    }
+    if (added.length) setAttachments((prev) => [...prev, ...added]);
   }, []);
 
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-        e.preventDefault();
-        onSend();
+  const onInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setInput(val);
+    // 检测末尾的 / 或 @ 触发命令/上下文弹层
+    const m = val.match(/(?:^|\s)([\/@#])(\S*)$/);
+    if (m) {
+      const [, trigger, q] = m;
+      if (trigger === '/') {
+        setShowCommands(true);
+        setShowMentions(false);
+        setShowModels(false);
+        setShowAgents(false);
+      } else if (trigger === '@' || trigger === '#') {
+        setShowMentions(true);
+        setMentionQuery(q || '');
+        setShowCommands(false);
+        setShowModels(false);
+        setShowAgents(false);
       }
-    },
-    [onSend]
+    } else {
+      setShowCommands(false);
+      setShowMentions(false);
+    }
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 220) + 'px';
+  }, []);
+
+  const currentAgentInfo = useMemo(
+    () => agents.find((a: any) => (a.id || a.name) === currentAgent),
+    [agents, currentAgent]
   );
+
+  const filteredModels = useMemo(() => {
+    const q = modelQuery.trim().toLowerCase();
+    const prefs = modelPrefs.get();
+    // 1. 隐藏 + 搜索
+    let list = models
+      .filter((m: any) => !prefs.hidden.includes(m.id))
+      .filter((m: any) => {
+        if (!q) return true;
+        const mid = m.id || '';
+        const pid = m.providerID || '';
+        const name = m.name || '';
+        return `${pid}/${mid} ${name}`.toLowerCase().includes(q);
+      });
+    // 2. 自定义名称
+    list = list.map((m: any) => ({ ...m, name: prefs.customNames[m.id] || m.name }));
+    // 3. 自定义顺序
+    if (prefs.order.length > 0) {
+      const idx = new Map(prefs.order.map((id, i) => [id, i] as [string, number]));
+      list = [...list].sort((a, b) => {
+        const ai = idx.has(a.id) ? idx.get(a.id)! : 1e9;
+        const bi = idx.has(b.id) ? idx.get(b.id)! : 1e9;
+        return ai - bi;
+      });
+    }
+    return list;
+  }, [models, modelQuery, models]);
+
+  const modelGroups = useMemo(() => {
+    const prefs = modelPrefs.get();
+    const g: Record<string, any[]> = {};
+    for (const m of filteredModels) {
+      const p = m.providerID || 'other';
+      // 自定义分组优先: 如果该模型被分配到了某个 group, 用 group 标签
+      let groupKey = p;
+      for (const [gid, ids] of Object.entries(prefs.groups)) {
+        if (ids.includes(m.id)) {
+          groupKey = gid;
+          break;
+        }
+      }
+      const label = prefs.groupLabels[groupKey] || prefs.providerLabels[groupKey] || groupKey;
+      (g[label] = g[label] || []).push(m);
+    }
+    return g;
+  }, [filteredModels, models]);
+
+  const visibleAgents = useMemo(
+    () => agents.filter((a: any) => {
+      const id = a.id || a.name;
+      const mode = a.mode || a.data?.mode;
+      return id && !HIDDEN_AGENTS.has(id) && (mode === 'primary' || mode === 'all');
+    }),
+    [agents]
+  );
+
+  const activeTodos = useMemo(() => {
+    const lastAssistant = [...rows].reverse().find((r) => r.role === 'assistant');
+    if (!lastAssistant) return [];
+    return findCurrentTodos(lastAssistant.parts || []);
+  }, [rows]);
+
+  // 命令列表 (与 OpenCode 一致)
+  const commandList = useMemo(() => [
+    { cmd: 'init', name: 'guided AGENTS.md setup', hint: '' },
+    { cmd: 'review', name: 'review changes', hint: '[commit|branch|pr], defaults to uncommitted' },
+    { cmd: 'customize-opencode', name: 'Use ONLY when the user is editing or creating opencode\'s own configuration: opencode.json, ...', hint: '' },
+    { cmd: 'baoyu-url-to-markdown', name: 'Fetch any URL and convert to markdown using baoyu-fetch CLI (Chrome CDP with site-spec...', hint: '' },
+    { cmd: 'baoyu-translate', name: 'This skill should be used when the user asks to "translate", "翻 译", "精翻", "translate article", "translat...', hint: '' },
+    { cmd: 'baoyu-diagram', name: 'Create professional, dark-themed SVG diagrams of any type — architecture diagrams, flowcharts, se...', hint: '' },
+    { cmd: 'baoyu-article-illustrator', name: 'Analyzes article structure, identifies positions requiring visual aids, generates illustrations wit...', hint: '' },
+    { cmd: 'baoyu-markdown-to-html', name: 'Converts Markdown to styled HTML with WeChat-compatible themes. Supports code highli...', hint: '' },
+    { cmd: 'baoyu-format-markdown', name: 'Formats plain text or markdown files with frontmatter, titles, summaries, headings, bold, list...', hint: '' },
+    { cmd: 'baoyu-image-gen', name: 'AI image generation with OpenAI GPT Image 2, Azure OpenAI, Google, OpenRouter, DashScope, zhipu...', hint: '' },
+  ], []);
+
+  const filteredCommands = useMemo(() => {
+    const q = input.match(/(?:^|\s)\/(\S*)$/)?.[1] || '';
+    if (!q) return commandList;
+    return commandList.filter((c) => c.cmd.startsWith(q.toLowerCase()) || c.name.toLowerCase().includes(q.toLowerCase()));
+  }, [commandList, input]);
+
+  // 文件/上下文引用候选 (从工作区 + agents)
+  const mentionList = useMemo(() => {
+    const q = input.match(/(?:^|\s)[@#](\S*)$/)?.[1] || '';
+    const items: Array<{ id: string; name: string; type: 'agent' | 'file' | 'symbol'; hint?: string }> = [
+      ...visibleAgents.map((a) => ({ id: a.id || a.name, name: a.name || a.id, type: 'agent' as const, hint: AGENT_DESC[a.id || a.name] })),
+    ];
+    if (!q) return items;
+    return items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
+  }, [visibleAgents, input]);
 
   return (
     <div className="tc-ai">
       <style>{styles}</style>
 
-      <div className="tc-ai__header" style={{ position: 'relative' }}>
-        <span className="tc-ai__header-title">AI 助手</span>
-        {sessionID && (
-          <span style={{ fontSize: 10, color: 'var(--descriptionForeground)', marginRight: 4, fontFamily: 'monospace' }}>
-            {(sessionID || '').slice(0, 6)}
-          </span>
+      <header className="tc-ai__topbar">
+        <div className="tc-ai__brand">
+          <span className="tc-ai__logo">T</span>
+          <span className="tc-ai__brand-name">Taichu</span>
+        </div>
+        {ready && (
+          <div className="tc-ai__top-actions">
+            <button
+              data-ai-pop="sessions"
+              className="tc-ai__icon-btn"
+              title="历史会话"
+              onClick={() => { setShowSessions((v) => !v); if (!showSessions) loadSessions(); }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </button>
+            <button className="tc-ai__icon-btn" title="新会话" onClick={onNewSession}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
         )}
-        <button className="tc-ai__btn" onClick={() => { setShowSessions(!showSessions); if (!showSessions) loadSessions(); }}>
-          历史会话
-        </button>
-        <button className="tc-ai__btn tc-ai__btn--primary" onClick={onNewSession}>新会话</button>
+      </header>
 
-        {showSessions && (
-          <div className="tc-ai__sessions">
-            <div className="tc-ai__sessions-header">
-              <span>历史会话</span>
-              <button className="tc-ai__sessions-close" onClick={() => setShowSessions(false)}>×</button>
+      {ready && showSessions && (
+        <div className="tc-ai__menu">
+          <div className="tc-ai__menu-head">
+            <span>历史会话</span>
+            <div className="tc-ai__menu-head-actions">
+              {sessions.length > 0 && (
+                <button
+                  className="tc-ai__menu-clear"
+                  title="清空全部会话"
+                  onClick={async () => {
+                    if (!confirm('确定删除全部会话？此操作不可恢复。')) return;
+                    try {
+                      const n = await aiDeleteAllSessions();
+                      skipAutoLoad.current = true;
+                      setSessions([]);
+                      setSessionID('');
+                      setRows([]);
+                      setError('');
+                      // 稍后重置标记, 下次新会话仍可自动加载
+                      setTimeout(() => { skipAutoLoad.current = false; }, 1000);
+                    } catch (e) { setError(String((e as any)?.message || e)); }
+                  }}
+                >
+                  清空
+                </button>
+              )}
+              <button onClick={() => setShowSessions(false)}>×</button>
             </div>
-            {sessions.length === 0 && (
-              <div style={{ padding: 14, color: '#8b929b', fontSize: 12 }}>暂无历史会话</div>
-            )}
+          </div>
+          <div className="tc-ai__menu-body">
+            {sessions.length === 0 && <div className="tc-ai__menu-empty">暂无历史会话</div>}
             {sessions.map((s: any) => (
               <div
                 key={s.id}
-                className={`tc-ai__sessions-item ${s.id === sessionID ? 'active' : ''}`}
+                className={`tc-ai__menu-item ${s.id === sessionID ? 'active' : ''}`}
                 onClick={() => onSwitchSession(s.id)}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.title || `会话 ${(s.id || '').slice(0, 8)}`}
-                  </span>
-                  <span style={{ fontSize: 11, color: '#8b929b', marginLeft: 8 }}>
-                    {(s.time?.created || s.updated) ? new Date(s.time?.created || s.updated).toLocaleDateString() : ''}
-                  </span>
+                <div className="tc-ai__menu-item-main">
+                  <div className="tc-ai__menu-title">{s.title || `会话 ${(s.id || '').slice(0, 8)}`}</div>
+                  <div className="tc-ai__menu-meta">
+                    {s.time?.created ? new Date(s.time.created).toLocaleString() : ''}
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  className="tc-ai__menu-del"
+                  title="删除会话"
+                  onClick={(e) => { e.stopPropagation(); onDeleteSession(s.id); }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
               </div>
             ))}
           </div>
-        )}
-      </div>
-
-      <div className="tc-ai__agent-select">
-        <span>助手:</span>
-        <select value={currentAgent} onChange={(e) => onSwitchAgent(e.target.value)}>
-          {agents.map((a: any) => (
-            <option key={a.id || a.name} value={a.id || a.name}>{a.name || a.id}</option>
-          ))}
-          {agents.length === 0 && <option value="build">build</option>}
-        </select>
-      </div>
-
-      <div className="tc-ai__scroll" ref={scrollRef}>
-        {rows.length === 0 && !busy && (
-          <EmptyState onSend={onSend} />
-        )}
-        {rows.map((r) => (
-          <MessageView
-            key={r.id}
-            row={r}
-            streaming={busy && r.role === 'assistant' && r.id === rows[rows.length - 1]?.id}
-            onReplyQuestion={onReplyQuestion}
-          />
-        ))}
-        {busy && rows.length > 0 && <TypingIndicator />}
-      </div>
-
-      {error && (
-        <div className="tc-ai__err">
-          <span>{error}</span>
-          <button className="tc-ai__btn" style={{ marginLeft: 8, padding: '2px 8px', fontSize: 11 }} onClick={async () => {
-            setError('');
-            if (!sessionID) return;
-            try {
-              await loadMessages(sessionID);
-            } catch (e) { setError(String((e as any)?.message || e)); }
-          }}>重试</button>
         </div>
       )}
 
-      <div className="tc-ai__input">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="输入消息, Enter 发送, Shift+Enter 换行"
-          rows={1}
-        />
-        {busy ? (
-          <button className="tc-ai__btn" onClick={onAbort}>中断</button>
+      {activeTodos.length > 0 && (
+        <TodosDock todos={activeTodos} />
+      )}
+
+      <div className="tc-ai__messages" ref={scrollRef}>
+        {!ready ? (
+          <LoginGate />
+        ) : rows.length === 0 ? (
+          <WelcomeScreen
+            agents={agents}
+            currentAgent={currentAgent}
+            onPick={(q) => { setInput(q); setTimeout(() => taRef.current?.focus(), 0); }}
+            onSelectAgent={onSwitchAgent}
+          />
         ) : (
-          <button className="tc-ai__send" onClick={onSend} disabled={!input.trim()}>发送</button>
+          rows.map((r) => (
+            <MessageRow
+              key={r.id}
+              row={r}
+              streaming={busy && r.role === 'assistant' && r.id === rows[rows.length - 1]?.id}
+              sessionID={sessionID}
+              onReplyQuestion={onReplyQuestion}
+            />
+          ))
         )}
+      </div>
+
+      {error && (
+        <div className="tc-ai__error">
+          <span className="tc-ai__error-text">{error}</span>
+          <button onClick={() => { setError(''); if (sessionID) loadMessages(sessionID); }}>重试</button>
+        </div>
+      )}
+
+      {ready && (
+        <div className="tc-ai__composer">
+          {activeQuestion && (
+            <QuestionModal
+              questions={activeQuestion.questions}
+              requestID={activeQuestion.requestID}
+              sessionID={sessionID}
+              onReply={onReplyQuestion}
+              onCancel={(rid) => onIgnoreQuestion(rid)}
+              onDismiss={() => setActiveQuestion(null)}
+            />
+          )}
+          {showCommands && (
+            <div className="tc-ai__cmd-pop">
+              <div className="tc-ai__cmd-list">
+                {filteredCommands.map((c) => (
+                  <button
+                    key={c.cmd}
+                    type="button"
+                    className="tc-ai__cmd-item"
+                    onClick={() => {
+                      // 把触发字符替换为 /<cmd>
+                      const replaced = input.replace(/(?:^|\s)\/\S*$/, `/${c.cmd} `);
+                      setInput(replaced);
+                      setShowCommands(false);
+                      setTimeout(() => taRef.current?.focus(), 0);
+                    }}
+                  >
+                    <span className="tc-ai__cmd-cmd">/{c.cmd}</span>
+                    <span className="tc-ai__cmd-name">{c.name}</span>
+                    {c.hint && <span className="tc-ai__cmd-hint">{c.hint}</span>}
+                  </button>
+                ))}
+                {filteredCommands.length === 0 && (
+                  <div className="tc-ai__cmd-empty">无匹配命令</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {showMentions && (
+            <div className="tc-ai__cmd-pop">
+              <div className="tc-ai__cmd-list">
+                {mentionList.length === 0 && (
+                  <div className="tc-ai__cmd-empty">无匹配项</div>
+                )}
+                {mentionList.map((m) => {
+                  const trigger = input.match(/[@#]\S*$/)?.[0]?.[0] || '@';
+                  return (
+                  <button
+                    key={`${m.type}-${m.id}`}
+                    type="button"
+                    className="tc-ai__cmd-item"
+                    onClick={() => {
+                      const replaced = input.replace(/[@#]\S*$/, `${trigger}${m.name} `);
+                      setInput(replaced);
+                      setShowMentions(false);
+                      setTimeout(() => taRef.current?.focus(), 0);
+                    }}
+                  >
+                    <span className="tc-ai__cmd-cmd">{trigger}{m.name}</span>
+                    <span className="tc-ai__cmd-name">{m.hint || m.type}</span>
+                  </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="tc-ai__input-wrap">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => { void onUploadFile(e.target.files); e.target.value = ''; }}
+            />
+            {attachments.length > 0 && (
+              <div className="tc-ai__attach">
+                {attachments.map((a, i) => (
+                  <span key={i} className="tc-ai__attach-chip">
+                    <span className="tc-ai__attach-name">{a.name}</span>
+                    <button
+                      type="button"
+                      className="tc-ai__attach-x"
+                      onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={taRef}
+              value={input}
+              onChange={onInput}
+              onKeyDown={onKeyDown}
+              placeholder="Ask anything, / for commands, @ for context..."
+              rows={1}
+            />
+            <div className="tc-ai__input-bar">
+              <button type="button" className="tc-ai__bar-btn tc-ai__bar-plus" title="上传附件" onClick={() => fileInputRef.current?.click()}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+
+              <div className="tc-ai__select">
+                <button
+                  data-ai-pop="agents"
+                  type="button"
+                  className="tc-ai__bar-btn tc-ai__bar-text"
+                  onClick={() => { setShowAgents((v) => !v); setShowModels(false); }}
+                >
+                  <span>{currentAgentInfo?.name || currentAgent}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {showAgents && (
+                  <div className="tc-ai__agent-pop">
+                    {visibleAgents.map((a: any) => {
+                      const id = a.id || a.name;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          className={`tc-ai__agent-item${id === currentAgent ? ' active' : ''}`}
+                          onClick={() => onSwitchAgent(id)}
+                        >
+                          <span className="tc-ai__agent-icon">{AGENT_ICONS[id] || '✨'}</span>
+                          <span className="tc-ai__agent-body">
+                            <span className="tc-ai__agent-name">{a.name || id}</span>
+                            <span className="tc-ai__agent-desc">{AGENT_DESC[id] || a.description || ''}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="tc-ai__select">
+                <button
+                  data-ai-pop="models"
+                  type="button"
+                  className="tc-ai__bar-btn tc-ai__bar-text"
+                  onClick={() => { setShowModels((v) => !v); setShowAgents(false); }}
+                >
+                  <svg className="tc-ai__spark" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z"/>
+                  </svg>
+                  <span>{currentModelLabel}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {showModels && (
+                  <ModelPicker
+                    models={models}
+                    providers={providers}
+                    currentModel={currentModel}
+                    onSelect={(id) => { setCurrentModel(id); setShowModels(false); }}
+                    onClose={() => setShowModels(false)}
+                  />
+                )}
+              </div>
+
+              <div className="tc-ai__bar-spacer" />
+
+              {busy ? (
+                <button type="button" className="tc-ai__send tc-ai__send--stop" onClick={() => onAbort()} title="停止">
+                  <span className="tc-ai__stop-square" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="tc-ai__send"
+                  onClick={onSend}
+                  disabled={!input.trim()}
+                  title="发送 (Enter)"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TodosDock: React.FC<{ todos: Array<{ content: string; status: string; priority?: string }> }> = ({ todos }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const completed = todos.filter((t) => t.status === 'completed').length;
+  const total = todos.length;
+  return (
+    <div className={`tc-ai__todos-dock${collapsed ? ' is-collapsed' : ''}`}>
+      <div className="tc-ai__todos-head" onClick={() => setCollapsed((v) => !v)}>
+        <span className="tc-ai__todos-title">
+          已完成 {completed} 个任务（共 {total} 个）
+        </span>
+        <span className="tc-ai__todos-caret">{collapsed ? '▾' : '▴'}</span>
+      </div>
+      {!collapsed && (
+        <ul className="tc-ai__todos-list">
+          {todos.map((t, i) => (
+            <li key={i} className={`tc-ai__todo-item is-${t.status}`}>
+              <span className="tc-ai__todo-check" aria-hidden="true">
+                {t.status === 'completed' ? '●' : t.status === 'in_progress' ? '◐' : '○'}
+              </span>
+              <span className="tc-ai__todo-content">{t.content}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+const LoginGate: React.FC = () => (
+  <div className="tc-ai__gate">
+    <div className="tc-ai__gate-logo"><span>T</span></div>
+    <h2 className="tc-ai__gate-title">
+      与 <span className="tc-ai__gate-brand">Taichu</span> 一起，开启智能之旅
+    </h2>
+    <ul className="tc-ai__gate-features">
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>集成丰富上下文，回答更准确</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>开放智能体生态，满足多样任务需求</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>理解需求、调动工具、端到端完成真实任务</span>
+      </li>
+    </ul>
+    <button
+      type="button"
+      className="tc-ai__gate-btn"
+      onClick={() => window.dispatchEvent(new CustomEvent('taichu:login-show'))}
+    >
+      登录 →
+    </button>
+  </div>
+);
+
+const WelcomeScreen: React.FC<{
+  agents: any[];
+  currentAgent: string;
+  onPick: (q: string) => void;
+  onSelectAgent: (a: string) => void;
+}> = ({ agents, currentAgent, onPick, onSelectAgent }) => {
+  const suggestions = [
+    { icon: '🚀', title: '帮我完成一个任务', desc: '告诉我目标，拆解并执行' },
+    { icon: '🔍', title: '调研一个话题', desc: '检索资料并总结结论' },
+    { icon: '✍️', title: '撰写一份文档', desc: '方案 / 报告 / 邮件 / 文案' },
+    { icon: '💡', title: '出个主意', desc: '头脑风暴与创意发散' },
+  ];
+  const featured = agents
+    .filter((a: any) => {
+      const id = a.id || a.name;
+      const mode = a.mode || a.data?.mode;
+      return id && !HIDDEN_AGENTS.has(id) && (mode === 'primary' || mode === 'all');
+    })
+    .slice(0, 4);
+  return (
+    <div className="tc-ai__welcome">
+      <div className="tc-ai__welcome-logo">T</div>
+      <h1 className="tc-ai__welcome-title">你好，我是 Taichu</h1>
+      <p className="tc-ai__welcome-sub">开箱即用的通用 Agent</p>
+
+      {featured.length > 0 && (
+        <div className="tc-ai__welcome-agents">
+          {featured.map((a: any) => {
+            const id = a.id || a.name;
+            const active = id === currentAgent;
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`tc-ai__agent-card${active ? ' is-active' : ''}`}
+                onClick={() => onSelectAgent(id)}
+              >
+                <span className="tc-ai__agent-card-icon">{AGENT_ICONS[id] || '✨'}</span>
+                <span className="tc-ai__agent-card-name">{a.name || id}</span>
+                <span className="tc-ai__agent-card-desc">{AGENT_DESC[id] || a.description || ''}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="tc-ai__welcome-suggest">
+        {suggestions.map((s, i) => (
+          <button key={i} className="tc-ai__suggest" onClick={() => onPick(s.title)}>
+            <span className="tc-ai__suggest-icon">{s.icon}</span>
+            <span className="tc-ai__suggest-body">
+              <span className="tc-ai__suggest-title">{s.title}</span>
+              <span className="tc-ai__suggest-desc">{s.desc}</span>
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );
 };
 
-// ============== 组件 ==============
-
-const EmptyState: React.FC<{ onSend: () => void }> = ({ onSend }) => (
-  <div className="tc-ai__empty">
-    <div style={{ fontSize: 32, opacity: 0.4, marginBottom: 8 }}>✨</div>
-    轻松应对复杂项目开发
-    <br />
-    <span style={{ fontSize: 12, opacity: 0.7 }}>输入消息开始对话 · 支持多 subagent / 任务规划 / A2UI 交互</span>
-  </div>
-);
-
-const TypingIndicator: React.FC = () => (
-  <div className="tc-ai__msg is-assistant">
-    <div className="tc-ai__msg-role">AI</div>
-    <div className="tc-ai__bubble tc-ai__cursor">思考中</div>
-  </div>
-);
-
-const MessageView: React.FC<{
+const MessageRow: React.FC<{
   row: Row;
   streaming: boolean;
-  onReplyQuestion: (sid: string, rid: string, answers: any) => Promise<void>;
-}> = ({ row, streaming, onReplyQuestion }) => {
+  sessionID: string;
+  onReplyQuestion: (sid: string, rid: string, answers: string[][]) => Promise<void>;
+}> = ({ row, streaming, sessionID, onReplyQuestion }) => {
+  const [hover, setHover] = useState(false);
   if (row.role === 'user') {
+    const text = extractText(row.parts);
+    const copy = () => navigator.clipboard?.writeText(text);
     return (
-      <div className="tc-ai__msg is-user">
-        <div className="tc-ai__msg-role">你</div>
-        <div className="tc-ai__bubble">{row.text || '...'}</div>
+      <div
+        className="tc-ai__msg is-user"
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+      >
+        <div className="tc-ai__msg-user-col">
+          <div className="tc-ai__msg-bubble is-user">{text}</div>
+          <div className={`tc-ai__msg-meta is-user${hover ? ' is-visible' : ''}`}>
+            <button className="tc-ai__msg-copy" onClick={copy} title="复制">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
+  const stepFinish = row.parts?.find((p: any) => p?.type === 'step-finish');
+  const modelID = stepFinish?.modelID
+    || row.parts?.find((p: any) => p?.type === 'text' && p?.modelID)?.modelID
+    || '';
+  const start = stepFinish?.time?.start;
+  const end = stepFinish?.time?.end;
+  const duration = formatDuration(start, end);
+  const textParts = row.parts?.filter((p: any) => p?.type === 'text') || [];
+  const fullText = textParts.map((p: any) => p.text).join('\n');
+  const copy = () => navigator.clipboard?.writeText(fullText);
+
   return (
-    <div className="tc-ai__msg is-assistant">
-      <div className="tc-ai__msg-role">AI</div>
-      <div className="tc-ai__bubble">
-        {(row.parts || []).map((part: any, i: number) => (
-          <PartView
-            key={part.id || i}
-            part={part}
-            streaming={streaming}
-            onReplyQuestion={onReplyQuestion}
-          />
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const PartView: React.FC<{
-  part: any;
-  streaming: boolean;
-  onReplyQuestion: (sid: string, rid: string, answers: any) => Promise<void>;
-}> = ({ part, streaming, onReplyQuestion }) => {
-  // 跳过合成/系统 part
-  if (part?.synthetic || part?.ignored) return null;
-
-  switch (part.type) {
-    case 'text':
-      return <div className={streaming ? 'tc-ai__cursor' : ''}>{part.text || ''}</div>;
-    case 'reasoning':
-      return <ReasoningView part={part} />;
-    case 'tool':
-      return <ToolDispatch part={part} onReplyQuestion={onReplyQuestion} />;
-    default:
-      // step-start / step-finish / snapshot / patch / agent / retry / compaction 隐藏
-      return null;
-  }
-};
-
-const ReasoningView: React.FC<{ part: any }> = ({ part }) => {
-  const [expanded, setExpanded] = useState(false);
-  const text = String(part.text || '').trim();
-  if (!text) return null;
-  return (
-    <details
-      className="tc-ai__reasoning"
-      style={{ marginBottom: 6 }}
-      open={expanded}
-      onToggle={(e) => setExpanded((e.target as HTMLDetailsElement).open)}
+    <div
+      className="tc-ai__msg is-assistant"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
-      <summary style={{ cursor: 'pointer', fontSize: 11, color: 'var(--descriptionForeground)', userSelect: 'none' }}>
-        思考过程
-      </summary>
-      <div style={{ padding: '4px 0', fontSize: 12, color: 'var(--descriptionForeground)', whiteSpace: 'pre-wrap' }}>
-        {text}
-      </div>
-    </details>
-  );
-};
-
-const ToolDispatch: React.FC<{
-  part: any;
-  onReplyQuestion: (sid: string, rid: string, answers: any) => Promise<void>;
-}> = ({ part, onReplyQuestion }) => {
-  const kind = getToolRenderKind(String(part.tool || ''));
-  switch (kind) {
-    case 'question':
-      return <QuestionToolView part={part} onReply={onReplyQuestion} />;
-    case 'todowrite':
-      return <TodowriteToolView part={part} />;
-    case 'subagent':
-      return <SubAgentToolView part={part} />;
-    default:
-      return <DefaultToolGroupView parts={[part]} />;
-  }
-};
-
-const QuestionToolView: React.FC<{
-  part: any;
-  onReply: (sid: string, rid: string, answers: any) => Promise<void>;
-}> = ({ part, onReply }) => {
-  const questions = extractQuestions(part);
-  const requestId = extractRequestId(part);
-  const status = part?.state?.status; // pending | running | completed | error
-  const [selected, setSelected] = useState<Record<number, string | string[]>>({});
-  const [customAnswer, setCustomAnswer] = useState<Record<number, string>>({});
-
-  if (!questions) {
-    return <DefaultToolGroupView parts={[part]} />;
-  }
-
-  const handleConfirm = async () => {
-    const answers = questions.map((q, i) => {
-      const opts = q.options || [];
-      const isMulti = opts.length > 0 && opts.length >= 2; // 多选启发式
-      const sel = selected[i];
-      const custom = customAnswer[i]?.trim();
-      if (sel && Array.isArray(sel)) return sel;
-      if (custom) return [custom];
-      return sel ? [sel] : [];
-    });
-    await onReply(part.sessionID, requestId, answers);
-  };
-
-  return (
-    <div className="tc-ai__question">
-      <div className="tc-ai__question-header">
-        <span>AI 需要确认 · 状态 {status}</span>
-      </div>
-      {questions.map((q, qi) => (
-        <div key={qi} className="tc-ai__question-item">
-          <div className="tc-ai__question-q">{q.question}</div>
-          <div className="tc-ai__question-options">
-            {(q.options || []).map((opt, oi) => (
-              <label key={oi} className="tc-ai__question-opt">
-                <input
-                  type="checkbox"
-                  checked={Array.isArray(selected[qi]) && (selected[qi] as string[]).includes(opt.label)}
-                  onChange={(e) => {
-                    setSelected((prev) => {
-                      const cur = Array.isArray(prev[qi]) ? (prev[qi] as string[]) : [];
-                      return {
-                        ...prev,
-                        [qi]: e.target.checked
-                          ? Array.from(new Set([...cur, opt.label]))
-                          : cur.filter((s) => s !== opt.label),
-                      };
-                    });
-                  }}
-                />
-                <span>{opt.label}</span>
-              </label>
-            ))}
-            <input
-              type="text"
-              className="tc-ai__question-custom"
-              placeholder="自定义答案"
-              value={customAnswer[qi] || ''}
-              onChange={(e) => setCustomAnswer((prev) => ({ ...prev, [qi]: e.target.value }))}
+      <div className="tc-ai__msg-body">
+        {(row.parts || []).map((part: any, i: number) => {
+          const questionMeta = part?.type === 'tool' && part?.tool === 'question'
+            ? questionStore.get(part.id) : null;
+          return (
+            <PartRenderer
+              key={part.id || i}
+              part={part}
+              streaming={streaming}
+              sessionID={sessionID}
+              onReply={onReplyQuestion}
+              preferredQuestionRequestID={questionMeta?.requestID}
             />
-          </div>
+          );
+        })}
+        <div className={`tc-ai__msg-meta is-assistant${hover ? ' is-visible' : ''}`}>
+          <button className="tc-ai__msg-copy" onClick={copy} title="复制">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+          {modelID && <span className="tc-ai__msg-model">{modelID}</span>}
+          {duration && <>
+            <span className="tc-ai__msg-sep">·</span>
+            <span className="tc-ai__msg-duration">{duration}</span>
+          </>}
         </div>
-      ))}
-      <div className="tc-ai__question-actions">
-        <button className="tc-ai__btn" onClick={handleConfirm}>提交</button>
       </div>
     </div>
   );
 };
-
-const TodowriteToolView: React.FC<{ part: any }> = ({ part }) => {
-  const [expanded, setExpanded] = useState(true);
-  const todos = useMemo(() => {
-    const candidates = [part?.state?.output, part?.state?.input];
-    for (const c of candidates) {
-      const list = extractAssistantTodos(c);
-      if (list.length > 0) return list;
-    }
-    return [];
-  }, [part]);
-  const stats = useMemo(() => {
-    let total = todos.length, completed = 0, inProgress = 0;
-    for (const t of todos) {
-      if (t.status === 'completed') completed += 1;
-      else if (t.status === 'in_progress') inProgress += 1;
-    }
-    return { total, completed, inProgress };
-  }, [todos]);
-
-  return (
-    <div className="tc-ai__todo">
-      <div className="tc-ai__todo-header" onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer' }}>
-        <span className="tc-ai__todo-icon">{part.state.status === 'completed' ? '✓' : (part.state.status === 'running' ? '◐' : '○')}</span>
-        <span style={{ flex: 1 }}>
-          {part.state.status === 'pending' && stats.total === 0
-            ? '正在规划任务...'
-            : `任务 ${stats.completed}/${stats.total}${stats.inProgress > 0 ? ` · ${stats.inProgress} 进行中` : ''}`}
-        </span>
-        <span style={{ fontSize: 11, color: 'var(--descriptionForeground)' }}>{expanded ? '▼' : '▶'}</span>
-      </div>
-      {expanded && todos.length > 0 && (
-        <div className="tc-ai__todo-list">
-          {todos.map((t, i) => (
-            <div key={i} className={`tc-ai__todo-item is-${t.status}`}>
-              <span className="tc-ai__todo-bullet">
-                {t.status === 'completed' ? '✓' : (t.status === 'in_progress' ? '◐' : '○')}
-              </span>
-              <span className="tc-ai__todo-content">{t.content}</span>
-              {t.priority && <span className="tc-ai__todo-priority">{t.priority}</span>}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const SubAgentToolView: React.FC<{ part: any }> = ({ part }) => {
-  const status = part?.state?.status || 'pending';
-  const subId = part?.state?.metadata?.sessionId || part?.state?.metadata?.sessionID;
-  const input = part?.state?.input || {};
-  return (
-    <div className="tc-ai__subagent">
-      <span className="tc-ai__subagent-icon">🤖</span>
-      <span className="tc-ai__subagent-name">
-        {input?.agent_name || input?.name || '子 agent'} ({input?.model || '?'})
-      </span>
-      <span className="tc-ai__subagent-status">{status}</span>
-      {subId && <span style={{ fontSize: 10, color: 'var(--descriptionForeground)', fontFamily: 'monospace' }}>{(subId || '').slice(0, 8)}</span>}
-    </div>
-  );
-};
-
-const DefaultToolGroupView: React.FC<{ parts: any[] }> = ({ parts }) => {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="tc-ai__tool-group">
-      <div className="tc-ai__tool-group-header" onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer' }}>
-        <span className="tc-ai__tool-group-icon">⚙</span>
-        <span style={{ flex: 1 }}>{parts[0]?.tool || 'tool'}</span>
-        <span style={{ fontSize: 11, color: 'var(--descriptionForeground)' }}>{expanded ? '▼' : '▶'}</span>
-      </div>
-      {expanded && (
-        <div className="tc-ai__tool-group-body">
-          {parts.map((p, i) => (
-            <div key={i} className="tc-ai__tool-detail">
-              {p?.state?.input && (
-                <div className="tc-ai__tool-section">
-                  <div className="tc-ai__tool-section-label">输入</div>
-                  <pre>{typeof p.state.input === 'string' ? p.state.input : JSON.stringify(p.state.input, null, 2)}</pre>
-                </div>
-              )}
-              {p?.state?.output && (
-                <div className="tc-ai__tool-section">
-                  <div className="tc-ai__tool-section-label">输出</div>
-                  <pre>{typeof p.state.output === 'string' ? p.state.output : JSON.stringify(p.state.output, null, 2)}</pre>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ============== Helpers ==============
-
-function extractText(parts: any[] | undefined): string {
-  if (!parts || !Array.isArray(parts)) return '';
-  return parts
-    .filter((p) => p?.type === 'text' && !p?.synthetic && !p?.ignored)
-    .map((p) => p.text || '')
-    .join('');
-}
-
-// ============== Styles ==============
 
 const styles = `
-.tc-ai { display:flex; flex-direction:column; height:100%; background:var(--panel-background,#0e0e12); color:var(--foreground,#e5e7eb); font-size:13px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; user-select:none; }
-.tc-ai__header { display:flex; align-items:center; gap:6px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.06); flex-shrink:0; }
-.tc-ai__header-title { flex:1; font-weight:600; font-size:13px; }
-.tc-ai__btn { padding:4px 8px; font-size:11px; border-radius:5px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.04); color:var(--foreground); cursor:pointer; transition:background .15s; }
-.tc-ai__btn:hover { background:rgba(255,255,255,0.1); }
-.tc-ai__btn--primary { background:linear-gradient(135deg,#6366f1,#8b5cf6); border-color:transparent; color:#fff; }
-.tc-ai__agent-select { display:flex; align-items:center; gap:6px; padding:4px 12px; border-bottom:1px solid rgba(255,255,255,0.06); flex-shrink:0; font-size:11px; }
-.tc-ai__agent-select select { background:#1c1c22; color:var(--foreground); border:1px solid rgba(255,255,255,0.12); border-radius:5px; padding:2px 6px; font-size:11px; }
-.tc-ai__scroll { flex:1; min-height:0; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
-.tc-ai__empty { margin:auto; text-align:center; color:var(--descriptionForeground,#8b929b); padding:30px 16px; line-height:1.6; }
-.tc-ai__msg { display:flex; flex-direction:column; gap:2px; }
-.tc-ai__msg.is-user { align-items:flex-end; }
-.tc-ai__msg-role { font-size:10px; color:var(--descriptionForeground,#8b929b); padding:0 4px; }
-.tc-ai__bubble { padding:8px 12px; border-radius:10px; max-width:95%; line-height:1.55; font-size:13px; word-break:break-word; }
-.tc-ai__msg.is-user .tc-ai__bubble { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border-top-right-radius:4px; }
-.tc-ai__msg.is-assistant .tc-ai__bubble { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); padding:6px 10px; border-top-left-radius:4px; }
-.tc-ai__cursor::after { content:'▍'; display:inline-block; animation:tc-ai-blink 1s steps(2) infinite; margin-left:2px; }
-@keyframes tc-ai-blink { 50% { opacity:0; } }
-.tc-ai__err { margin:0 12px 8px; padding:6px 10px; border-radius:6px; font-size:11px; color:#fecaca; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.3); display:flex; align-items:center; }
-.tc-ai__input { display:flex; gap:6px; padding:8px 12px; border-top:1px solid rgba(255,255,255,0.06); flex-shrink:0; }
-.tc-ai__input textarea { flex:1; resize:none; background:#1c1c22; color:var(--foreground); border:1px solid rgba(255,255,255,0.12); border-radius:6px; padding:6px 8px; font-size:13px; font-family:inherit; outline:none; min-height:28px; max-height:80px; }
-.tc-ai__input textarea:focus { border-color:#6366f1; }
-.tc-ai__send { padding:4px 12px; border-radius:6px; border:none; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; font-size:12px; cursor:pointer; align-self:flex-end; }
-.tc-ai__send:disabled { opacity:.5; cursor:not-allowed; }
-.tc-ai__sessions { position:absolute; top:36px; left:8px; right:8px; z-index:100; background:#1c1c22; border:1px solid rgba(255,255,255,0.1); border-radius:8px; box-shadow:0 8px 32px rgba(0,0,0,.5); max-height:50%; overflow-y:auto; }
-.tc-ai__sessions-header { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.06); font-size:11px; color:var(--descriptionForeground); }
-.tc-ai__sessions-close { background:transparent; border:none; color:var(--descriptionForeground); cursor:pointer; font-size:14px; padding:0 4px; }
-.tc-ai__sessions-item { padding:8px 10px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.05); font-size:11px; }
-.tc-ai__sessions-item:hover { background:rgba(255,255,255,0.06); }
-.tc-ai__sessions-item.active { background:rgba(99,102,241,.12); }
-/* Question */
-.tc-ai__question { margin:6px 0; padding:8px 10px; border:1px solid rgba(99,102,241,.3); border-radius:8px; background:rgba(99,102,241,.04); }
-.tc-ai__question-header { font-size:11px; color:#c7d2fe; margin-bottom:6px; }
-.tc-ai__question-item { margin-top:6px; }
-.tc-ai__question-q { font-size:12px; margin-bottom:4px; }
-.tc-ai__question-options { display:flex; flex-direction:column; gap:3px; }
-.tc-ai__question-opt { display:flex; align-items:center; gap:6px; padding:3px 4px; font-size:12px; }
-.tc-ai__question-opt input { accent-color:#6366f1; }
-.tc-ai__question-custom { background:#1c1c22; color:var(--foreground); border:1px solid rgba(255,255,255,0.12); border-radius:4px; padding:3px 6px; font-size:11px; margin-top:3px; }
-.tc-ai__question-actions { display:flex; gap:6px; justify-content:flex-end; margin-top:8px; }
-/* Todo (todowrite tool) */
-.tc-ai__todo { margin:6px 0; padding:6px 8px; border:1px solid rgba(255,255,255,0.06); border-radius:6px; background:rgba(99,102,241,.04); }
-.tc-ai__todo-header { display:flex; align-items:center; gap:6px; font-size:12px; padding:2px 0; }
-.tc-ai__todo-icon { font-size:14px; }
-.tc-ai__todo-list { margin-top:6px; padding-left:4px; border-left:1px solid rgba(255,255,255,0.08); }
-.tc-ai__todo-item { display:flex; align-items:center; gap:6px; padding:3px 6px; font-size:11px; opacity:0.9; }
-.tc-ai__todo-item.is-completed { opacity:0.5; }
-.tc-ai__todo-item.is-completed .tc-ai__todo-content { text-decoration:line-through; }
-.tc-ai__todo-bullet { font-size:11px; opacity:0.8; }
-.tc-ai__todo-priority { font-size:9px; padding:0 4px; border-radius:3px; background:rgba(255,255,255,0.08); color:var(--descriptionForeground); margin-left:auto; }
-/* SubAgent */
-.tc-ai__subagent { display:flex; align-items:center; gap:6px; padding:6px 8px; margin:4px 0; border-radius:6px; background:rgba(139,92,246,.06); border:1px solid rgba(139,92,246,.18); font-size:11px; }
-.tc-ai__subagent-icon { font-size:14px; }
-.tc-ai__subagent-name { font-weight:500; }
-.tc-ai__subagent-status { font-size:10px; padding:0 4px; border-radius:3px; background:rgba(255,255,255,0.08); color:var(--descriptionForeground); }
-/* Default tool */
-.tc-ai__tool-group { margin:4px 0; padding:6px 8px; border:1px solid rgba(255,255,255,0.06); border-radius:6px; }
-.tc-ai__tool-group-header { display:flex; align-items:center; gap:6px; font-size:11px; }
-.tc-ai__tool-group-icon { font-size:13px; }
-.tc-ai__tool-group-body { margin-top:6px; }
-.tc-ai__tool-section { margin-top:4px; }
-.tc-ai__tool-section-label { font-size:10px; color:var(--descriptionForeground); margin-bottom:2px; }
-.tc-ai__tool-section pre { overflow-x:auto; background:rgba(0,0,0,.15); padding:4px 6px; border-radius:4px; font-size:11px; margin:0; white-space:pre-wrap; word-break:break-word; }
-/* Reasoning (collapsed) */
-.tc-ai__reasoning { background:rgba(255,255,255,0.02); }
-.tc-ai__reasoning summary { list-style:none; cursor:pointer; }
-.tc-ai__reasoning summary::-webkit-details-marker { display:none; }
+.tc-ai {
+  display: flex; flex-direction: column; height: 100%;
+  background: var(--tc-panel-bg, var(--editor-background, #181818));
+  color: var(--editor-foreground, #e5e7eb);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+/* Topbar */
+.tc-ai__topbar {
+  height: 36px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+.tc-ai__brand { display: flex; align-items: center; gap: 8px; }
+.tc-ai__logo {
+  width: 22px; height: 22px; border-radius: 6px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff; font-weight: 700; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+}
+.tc-ai__brand-name { font-weight: 600; font-size: 13px; }
+.tc-ai__top-actions { display: flex; align-items: center; gap: 2px; }
+.tc-ai__icon-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 6px;
+  color: var(--descriptionForeground, #9ca3af);
+  cursor: pointer;
+}
+.tc-ai__icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--editor-foreground); }
+
+/* Menus / popovers */
+.tc-ai__menu {
+  position: absolute; top: 38px; right: 8px; z-index: 50;
+  width: 260px; max-height: 360px;
+  background: #1c1c22; border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.tc-ai__menu-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; font-size: 12px; color: var(--descriptionForeground);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.tc-ai__menu-head-actions { display: flex; align-items: center; gap: 6px; }
+.tc-ai__menu-clear {
+  background: transparent; border: none;
+  color: #fca5a5; font-size: 12px; cursor: pointer; padding: 2px 6px;
+  border-radius: 4px;
+}
+.tc-ai__menu-clear:hover { background: rgba(239,68,68,0.12); }
+.tc-ai__menu-head button {
+  background: transparent; border: none; color: var(--descriptionForeground);
+  font-size: 13px; cursor: pointer; line-height: 1;
+}
+.tc-ai__menu-body { overflow-y: auto; padding: 4px; }
+.tc-ai__menu-empty { padding: 20px; text-align: center; color: var(--descriptionForeground); font-size: 12px; }
+.tc-ai__menu-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 6px; cursor: pointer;
+}
+.tc-ai__menu-item:hover { background: rgba(255,255,255,0.05); }
+.tc-ai__menu-item.active { background: rgba(99,102,241,0.14); }
+.tc-ai__menu-item-main { flex: 1; min-width: 0; }
+.tc-ai__menu-title { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-ai__menu-meta { font-size: 10.5px; color: var(--descriptionForeground); margin-top: 2px; }
+.tc-ai__menu-del {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--descriptionForeground); cursor: pointer; padding: 0;
+  opacity: 0;
+}
+.tc-ai__menu-item:hover .tc-ai__menu-del { opacity: 1; }
+.tc-ai__menu-del:hover { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+/* Todos bar */
+/* Todos dock (above composer, OpenCode style) */
+.tc-ai__todos-dock {
+  margin: 8px 8px 0;
+  padding: 0;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.tc-ai__todos-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.tc-ai__todos-title {
+  font-size: 12px; color: var(--descriptionForeground);
+}
+.tc-ai__todos-caret {
+  font-size: 10px; color: var(--descriptionForeground);
+}
+.tc-ai__todos-list {
+  list-style: none; margin: 0; padding: 0 12px 8px 32px;
+}
+.tc-ai__todo-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 4px 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--editor-foreground);
+}
+.tc-ai__todo-item.is-completed {
+  color: var(--descriptionForeground);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.tc-ai__todo-item.is-in_progress {
+  font-weight: 500;
+  color: var(--editor-foreground);
+}
+.tc-ai__todo-check {
+  flex-shrink: 0;
+  margin-left: -22px;
+  font-size: 12px;
+  color: var(--descriptionForeground);
+  width: 14px;
+  text-align: center;
+}
+.tc-ai__todo-item.is-in_progress .tc-ai__todo-check { color: #facc15; }
+.tc-ai__todo-item.is-completed .tc-ai__todo-check { color: #4ade80; }
+
+/* Messages area */
+.tc-ai__messages {
+  flex: 1; overflow-y: auto;
+  padding: 16px 20px;
+  display: flex; flex-direction: column;
+}
+.tc-ai__msg { margin: 6px 0; display: flex; }
+.tc-ai__msg.is-user { justify-content: flex-end; }
+.tc-ai__msg.is-assistant { justify-content: flex-start; }
+.tc-ai__msg-user-col { display: flex; flex-direction: column; align-items: flex-end; max-width: 80%; }
+.tc-ai__msg-body {
+  max-width: 100%;
+  color: var(--editor-foreground);
+  font-size: 13px; line-height: 1.65;
+}
+.tc-ai__msg-bubble.is-user {
+  display: inline-block;
+  background: rgba(255,255,255,0.08);
+  color: var(--editor-foreground);
+  padding: 7px 12px;
+  border-radius: 12px;
+  word-wrap: break-word; white-space: pre-wrap;
+  font-size: 13px; line-height: 1.5;
+  max-width: 100%;
+}
+.tc-ai__msg-meta {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--descriptionForeground);
+  opacity: 0; transition: opacity .12s;
+}
+.tc-ai__msg-meta.is-visible { opacity: 1; }
+.tc-ai__msg-meta.is-user { justify-content: flex-end; }
+.tc-ai__msg-copy {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--descriptionForeground); cursor: pointer; padding: 0;
+}
+.tc-ai__msg-copy:hover { background: rgba(255,255,255,0.08); color: var(--editor-foreground); }
+.tc-ai__msg-sep { opacity: 0.5; }
+.tc-ai__msg-model { font-weight: 500; }
+
+/* Error */
+.tc-ai__error {
+  margin: 0 12px 8px;
+  padding: 8px 12px;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 8px;
+  color: #fca5a5; font-size: 12px;
+  display: flex; align-items: center; gap: 10px;
+}
+.tc-ai__error button {
+  margin-left: auto;
+  background: rgba(255,255,255,0.08); border: none; color: #fecaca;
+  padding: 3px 10px; border-radius: 5px; cursor: pointer; font-size: 11px;
+}
+
+/* Composer */
+.tc-ai__composer {
+  padding: 8px 12px 12px;
+  flex-shrink: 0;
+  position: relative;
+}
+.tc-ai__input-wrap {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 10px 12px 8px;
+  transition: border-color .15s, background .15s;
+  display: flex; flex-direction: column;
+}
+.tc-ai__input-wrap:focus-within {
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.05);
+}
+.tc-ai__input-wrap textarea {
+  width: 100%; resize: none;
+  background: transparent; border: none; outline: none;
+  color: var(--editor-foreground);
+  font-family: inherit; font-size: 13px; line-height: 1.55;
+  padding: 4px 2px 12px; min-height: 56px; max-height: 220px;
+  overflow-y: auto; display: block;
+}
+.tc-ai__input-wrap textarea::placeholder { color: var(--descriptionForeground); }
+
+/* Attachment chips */
+.tc-ai__attach {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 0 2px 6px;
+}
+.tc-ai__attach-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 100%;
+  padding: 3px 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  font-size: 11.5px;
+}
+.tc-ai__attach-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tc-ai__attach-x {
+  background: transparent; border: none; color: var(--descriptionForeground);
+  font-size: 12px; cursor: pointer; line-height: 1; padding: 0;
+}
+.tc-ai__attach-x:hover { color: var(--editor-foreground); }
+
+.tc-ai__input-bar {
+  display: flex; align-items: center; gap: 4px;
+}
+.tc-ai__bar-spacer { flex: 1; }
+.tc-ai__bar-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 28px; padding: 0 8px;
+  background: transparent; border: none; border-radius: 8px;
+  color: var(--descriptionForeground);
+  font-family: inherit; font-size: 13px;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.tc-ai__bar-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--editor-foreground);
+}
+.tc-ai__bar-plus { width: 28px; padding: 0; justify-content: center; }
+.tc-ai__spark { color: #a5b4fc; }
+.tc-ai__send {
+  width: 32px; height: 32px; border-radius: 9px;
+  border: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.82); color: #0a0a0d;
+  transition: background .15s, opacity .15s;
+  flex-shrink: 0;
+}
+.tc-ai__send:hover:not(:disabled) { background: #fff; }
+.tc-ai__send:disabled {
+  opacity: 0.35; cursor: not-allowed;
+  background: rgba(255,255,255,0.12); color: var(--descriptionForeground);
+}
+.tc-ai__send--stop {
+  background: rgba(239,68,68,0.18); color: #fca5a5;
+}
+.tc-ai__stop-square {
+  width: 9px; height: 9px;
+  background: currentColor; border-radius: 2px;
+}
+
+/* Model picker (OpenCode-style modal with view switching) */
+.tc-ai__mpop-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+}
+.tc-ai__mpop {
+  width: 640px; max-width: calc(100vw - 16px); max-height: min(calc(100vh - 16px), 640px);
+  background: #15151a;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.55);
+}
+.tc-ai__mpop-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px 8px;
+}
+.tc-ai__mpop-back {
+  width: 24px; height: 24px;
+  background: transparent; border: none; color: var(--descriptionForeground);
+  cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+}
+.tc-ai__mpop-back:hover { background: rgba(255,255,255,0.06); color: var(--editor-foreground); }
+.tc-ai__mpop-title { font-size: 13px; font-weight: 600; flex: 1; }
+.tc-ai__mpop-close {
+  width: 24px; height: 24px;
+  background: transparent; border: none; color: var(--descriptionForeground);
+  font-size: 16px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+}
+.tc-ai__mpop-close:hover { background: rgba(255,255,255,0.06); color: var(--editor-foreground); }
+
+.tc-ai__mpop-search {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 12px 8px;
+  padding: 7px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(99,102,241,0.5);
+  border-radius: 8px;
+  color: var(--descriptionForeground);
+}
+.tc-ai__mpop-search input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--editor-foreground); font-family: inherit; font-size: 13px;
+}
+.tc-ai__mpop-body { flex: 1; overflow-y: auto; padding: 4px 8px 8px; }
+
+.tc-ai__mpop-group { padding: 4px 0; }
+.tc-ai__mpop-group-title {
+  padding: 8px 8px 4px;
+  font-size: 11px; color: var(--descriptionForeground);
+}
+.tc-ai__mpop-item {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px;
+  background: transparent; border: none; border-radius: 6px;
+  color: var(--editor-foreground); font-family: inherit; font-size: 12.5px;
+  cursor: pointer; text-align: left;
+}
+.tc-ai__mpop-item:hover { background: rgba(255,255,255,0.06); }
+.tc-ai__mpop-item.is-active { background: rgba(99,102,241,0.18); }
+.tc-ai__mpop-item.is-active .tc-ai__mpop-name { color: #c7d2fe; }
+.tc-ai__mpop-name { flex: 1; min-width: 0; }
+.tc-ai__mpop-tag {
+  flex-shrink: 0;
+  font-size: 10px; padding: 1px 6px; border-radius: 4px;
+  background: rgba(255,255,255,0.08);
+  color: var(--descriptionForeground);
+}
+.tc-ai__mpop-check { flex-shrink: 0; color: #a5b4fc; }
+.tc-ai__mpop-empty { padding: 20px; text-align: center; color: var(--descriptionForeground); font-size: 12px; }
+
+.tc-ai__mpop-section {
+  margin-top: 8px; padding: 8px 0 0;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.tc-ai__mpop-section-title {
+  padding: 4px 8px 8px;
+  font-size: 11px; color: var(--descriptionForeground);
+}
+.tc-ai__mpop-providers {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  padding: 0 4px;
+}
+.tc-ai__mpop-provider {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  color: var(--editor-foreground);
+  cursor: pointer; text-align: left;
+  font-family: inherit;
+}
+.tc-ai__mpop-provider:hover { background: rgba(255,255,255,0.06); }
+.tc-ai__mpop-provider-name { font-size: 12.5px; font-weight: 500; }
+.tc-ai__mpop-provider-desc { font-size: 10.5px; color: var(--descriptionForeground); flex: 1; min-width: 0; }
+.tc-ai__mpop-more {
+  display: block; margin: 8px 4px 0;
+  background: transparent; border: none;
+  color: #a5b4fc; font-size: 12px; cursor: pointer;
+  text-align: left; padding: 4px 8px;
+}
+.tc-ai__mpop-more:hover { text-decoration: underline; }
+
+.tc-ai__mpop-foot {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  color: var(--descriptionForeground);
+  font-size: 12px; cursor: pointer;
+  margin-top: 6px;
+}
+.tc-ai__mpop-foot:hover { color: var(--editor-foreground); background: rgba(255,255,255,0.03); }
+
+/* Provider row (in 连接提供商) */
+.tc-ai__mpop-provider-row {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px;
+  background: transparent; border: none; border-radius: 6px;
+  color: var(--editor-foreground); font-family: inherit; font-size: 12.5px;
+  cursor: pointer; text-align: left;
+}
+.tc-ai__mpop-provider-row:hover { background: rgba(255,255,255,0.06); }
+
+  width: 280px; max-height: 360px; overflow-y: auto; z-index: 60;
+  background: #1c1c22;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+  padding: 6px;
+}
+.tc-ai__agent-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  width: 100%; padding: 8px 10px;
+  background: transparent; border: none; border-radius: 8px;
+  color: var(--editor-foreground); font-family: inherit; text-align: left;
+  cursor: pointer;
+}
+.tc-ai__agent-item:hover { background: rgba(255,255,255,0.05); }
+.tc-ai__agent-item.active { background: rgba(99,102,241,0.14); }
+.tc-ai__agent-icon { font-size: 16px; line-height: 1.3; flex-shrink: 0; }
+.tc-ai__agent-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tc-ai__agent-name { font-size: 12px; font-weight: 600; }
+.tc-ai__agent-desc { font-size: 10.5px; color: var(--descriptionForeground); line-height: 1.4; }
+
+/* ========== Tool call card (OpenCode style) ========== */
+.tc-tool {
+  margin: 4px 0;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tc-tool__head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 7px 10px;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--editor-foreground); font-family: inherit; font-size: 12.5px;
+  text-align: left;
+}
+.tc-tool__head:hover { background: rgba(255,255,255,0.04); }
+.tc-tool__icon {
+  width: 20px; height: 20px; border-radius: 5px;
+  background: rgba(255,255,255,0.06);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0;
+}
+.tc-tool__name {
+  font-weight: 600; font-size: 12px;
+  color: var(--editor-foreground);
+  flex-shrink: 0;
+}
+.tc-tool__summary {
+  flex: 1; min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px; color: var(--descriptionForeground);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tc-tool__caret { color: var(--descriptionForeground); font-size: 9px; flex-shrink: 0; }
+.tc-tool__body { padding: 0 10px 8px; }
+.tc-tool__section pre {
+  margin: 0; padding: 6px 8px;
+  background: rgba(0,0,0,0.25); border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; line-height: 1.5;
+  overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+  max-height: 260px; overflow-y: auto;
+}
+.tc-tool__section.is-error pre { color: #fca5a5; }
+
+/* ========== Question card (OpenCode style) ========== */
+.tc-q {
+  margin: 4px 0;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tc-q__head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12.5px;
+}
+.tc-q__head:hover { background: rgba(255,255,255,0.04); }
+.tc-q__badge {
+  font-size: 11px; color: var(--descriptionForeground);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tc-q__head-title { flex: 1; font-weight: 500; }
+.tc-q__caret { color: var(--descriptionForeground); font-size: 9px; }
+.tc-q__summary {
+  padding: 2px 10px 8px 26px;
+  font-size: 12.5px; color: var(--editor-foreground);
+  line-height: 1.5;
+}
+.tc-q__item { padding: 4px 10px 8px; }
+.tc-q__q {
+  font-size: 13px; line-height: 1.5;
+  margin-bottom: 6px;
+}
+.tc-q__opts { display: flex; flex-direction: column; gap: 4px; }
+.tc-q__opt {
+  display: flex; align-items: flex-start; gap: 8px;
+  width: 100%; padding: 7px 10px;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: var(--editor-foreground); font-family: inherit; font-size: 13px;
+  cursor: pointer; text-align: left;
+}
+.tc-q__opt:hover { background: rgba(255,255,255,0.04); }
+.tc-q__opt.is-active { background: rgba(99,102,241,0.12); }
+.tc-q__opt-mark {
+  flex-shrink: 0; font-size: 13px; line-height: 1.4;
+  color: var(--descriptionForeground);
+}
+.tc-q__opt.is-active .tc-q__opt-mark { color: #a5b4fc; }
+.tc-q__opt-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tc-q__opt-label { font-size: 13px; }
+.tc-q__opt-desc { font-size: 11.5px; color: var(--descriptionForeground); line-height: 1.4; }
+.tc-q__custom {
+  width: 100%; resize: none;
+  background: transparent; border: none; outline: none;
+  color: var(--editor-foreground);
+  font-family: inherit; font-size: 13px;
+  padding: 2px 0;
+}
+.tc-q__custom::placeholder { color: var(--descriptionForeground); }
+.tc-q__custom-opt { cursor: text; }
+.tc-q__foot {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 0 10px 10px;
+}
+.tc-q__submit {
+  padding: 5px 14px; border-radius: 6px; cursor: pointer;
+  background: rgba(255,255,255,0.08);
+  color: var(--editor-foreground);
+  border: 1px solid rgba(255,255,255,0.1);
+  font-size: 12px; font-weight: 500;
+}
+.tc-q__submit:hover { background: rgba(255,255,255,0.12); }
+.tc-q__submit:disabled { opacity: 0.5; cursor: default; }
+.tc-q--waiting {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  color: var(--descriptionForeground);
+  font-size: 12.5px;
+}
+
+/* ========== Question modal (dock above composer) ========== */
+.tc-ai__qmodal {
+  margin-bottom: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.tc-ai__qmodal-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.tc-ai__qmodal-count { font-size: 12px; font-weight: 500; }
+.tc-ai__qmodal-tabs { display: flex; gap: 4px; flex: 1; }
+.tc-ai__qmodal-tab {
+  padding: 3px 10px;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--descriptionForeground); font-size: 11.5px;
+  cursor: pointer;
+}
+.tc-ai__qmodal-tab:hover { background: rgba(255,255,255,0.05); color: var(--editor-foreground); }
+.tc-ai__qmodal-tab.is-active {
+  background: rgba(99,102,241,0.15); color: #c7d2fe;
+}
+.tc-ai__qmodal-min {
+  width: 24px; height: 24px;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--descriptionForeground); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tc-ai__qmodal-min:hover { background: rgba(255,255,255,0.06); color: var(--editor-foreground); }
+.tc-ai__qmodal-body { padding: 10px 12px; }
+.tc-ai__qmodal-q { font-size: 13px; line-height: 1.5; }
+.tc-ai__qmodal-hint { font-size: 11.5px; color: var(--descriptionForeground); margin: 4px 0 8px; }
+.tc-ai__qmodal-opts { display: flex; flex-direction: column; gap: 4px; }
+.tc-ai__qmodal-opt {
+  display: flex; align-items: flex-start; gap: 8px;
+  width: 100%; padding: 8px 10px;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: var(--editor-foreground); font-family: inherit; font-size: 13px;
+  cursor: pointer; text-align: left;
+}
+.tc-ai__qmodal-opt:hover { background: rgba(255,255,255,0.04); }
+.tc-ai__qmodal-opt.is-active { background: rgba(99,102,241,0.12); }
+.tc-ai__qmodal-opt.is-custom { cursor: text; }
+.tc-ai__qmodal-radio {
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 1.5px solid var(--descriptionForeground);
+  flex-shrink: 0; margin-top: 1px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tc-ai__qmodal-opt.is-active .tc-ai__qmodal-radio { border-color: #a5b4fc; }
+.tc-ai__qmodal-radio-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: transparent;
+}
+.tc-ai__qmodal-opt.is-active .tc-ai__qmodal-radio-dot { background: #a5b4fc; }
+.tc-ai__qmodal-opt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tc-ai__qmodal-opt-label { font-size: 13px; }
+.tc-ai__qmodal-opt-desc { font-size: 11.5px; color: var(--descriptionForeground); line-height: 1.4; }
+.tc-ai__qmodal-opt textarea {
+  width: 100%; resize: none;
+  background: transparent; border: none; outline: none;
+  color: var(--editor-foreground);
+  font-family: inherit; font-size: 13px;
+  padding: 2px 0;
+}
+.tc-ai__qmodal-opt textarea::placeholder { color: var(--descriptionForeground); }
+.tc-ai__qmodal-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+  padding: 4px 12px 10px;
+  border-top: none;
+}
+.tc-ai__qmodal-btn {
+  padding: 4px 10px; border-radius: 5px; cursor: pointer;
+  background: transparent; border: none;
+  color: var(--descriptionForeground);
+  font-size: 12px; font-weight: 500;
+}
+.tc-ai__qmodal-btn:hover { background: rgba(255,255,255,0.06); color: var(--editor-foreground); }
+.tc-ai__qmodal-btn--primary {
+  background: rgba(255,255,255,0.08);
+}
+.tc-ai__qmodal-btn--primary:hover { background: rgba(255,255,255,0.12); }
+.tc-ai__qmodal-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ========== Reasoning (OpenCode style) ========== */
+.tc-reason {
+  margin: 4px 0;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tc-reason__head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 7px 10px;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--descriptionForeground); font-family: inherit;
+  font-size: 12.5px; text-align: left;
+}
+.tc-reason__head:hover { background: rgba(255,255,255,0.04); color: var(--editor-foreground); }
+.tc-reason__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--descriptionForeground);
+}
+.tc-reason__caret {
+  margin-left: auto;
+  color: var(--descriptionForeground); font-size: 9px;
+}
+.tc-reason__body {
+  padding: 2px 10px 10px 30px;
+}
+.tc-reason__body pre {
+  margin: 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--descriptionForeground);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Gate (logged out) */
+.tc-ai__gate {
+  margin: auto; text-align: left;
+  max-width: 340px; padding: 32px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  color: #f3f4f6;
+}
+.tc-ai__gate-logo {
+  width: 64px; height: 64px; border-radius: 16px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; font-weight: 700;
+  box-shadow: 0 8px 24px rgba(99,102,241,0.35);
+}
+.tc-ai__gate-title { margin: 0; font-size: 19px; font-weight: 600; line-height: 1.4; color: #f3f4f6; }
+.tc-ai__gate-brand {
+  background: linear-gradient(135deg, #a5b4fc, #f0abfc);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.tc-ai__gate-features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.tc-ai__gate-features li { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; color: #d1d5db; line-height: 1.5; }
+.tc-ai__gate-features svg { color: #c7d2fe; flex-shrink: 0; margin-top: 2px; }
+.tc-ai__gate-btn {
+  margin-top: 6px; align-self: flex-start;
+  padding: 9px 20px;
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  color: #0b1220; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(34,197,94,0.3);
+}
+.tc-ai__gate-btn:hover { filter: brightness(1.08); }
+
+/* Welcome */
+.tc-ai__welcome {
+  margin: auto;
+  text-align: center;
+  max-width: 420px; padding: 32px 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.tc-ai__welcome-logo {
+  width: 60px; height: 60px; border-radius: 16px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff; font-size: 28px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 24px rgba(99,102,241,0.35);
+}
+.tc-ai__welcome-title { margin: 6px 0 0; font-size: 17px; font-weight: 600; color: #f3f4f6; }
+.tc-ai__welcome-sub { margin: 0 0 12px; font-size: 12.5px; color: var(--descriptionForeground); }
+.tc-ai__welcome-agents {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%;
+  margin-bottom: 12px;
+}
+.tc-ai__agent-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  color: var(--editor-foreground); font-family: inherit;
+  cursor: pointer; text-align: left;
+  transition: background .12s, border-color .12s;
+}
+.tc-ai__agent-card:hover { background: rgba(255,255,255,0.06); }
+.tc-ai__agent-card.is-active {
+  background: rgba(99,102,241,0.12);
+  border-color: rgba(99,102,241,0.4);
+}
+.tc-ai__agent-card-icon { font-size: 16px; }
+.tc-ai__agent-card-name { font-size: 13px; font-weight: 600; }
+.tc-ai__agent-card-desc { font-size: 10.5px; color: var(--descriptionForeground); line-height: 1.4; }
+
+.tc-ai__welcome-suggest {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%;
+}
+.tc-ai__suggest {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  color: var(--editor-foreground); font-family: inherit;
+  cursor: pointer; text-align: left;
+}
+.tc-ai__suggest:hover { background: rgba(255,255,255,0.06); }
+.tc-ai__suggest-icon { font-size: 16px; flex-shrink: 0; }
+.tc-ai__suggest-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tc-ai__suggest-title { font-size: 12px; font-weight: 500; }
+.tc-ai__suggest-desc { font-size: 10.5px; color: var(--descriptionForeground); line-height: 1.4; }
 `;

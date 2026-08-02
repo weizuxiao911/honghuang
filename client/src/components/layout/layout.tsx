@@ -32,11 +32,18 @@ export function LayoutComponent(): React.ReactElement {
   const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
 
   // 左侧栏固定默认宽度 286 (每次启动强制, 覆盖 OpenSumi 缓存/内置 310)
+  // 右侧 AI 面板固定默认宽度 438
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        const tabbar = layoutService.getTabbarService(SlotLocation.left);
-        tabbar.resizeHandle?.setSize(286);
+        const left = layoutService.getTabbarService(SlotLocation.left);
+        left.resizeHandle?.setSize(286);
+      } catch {
+        /* ignore */
+      }
+      try {
+        const right = layoutService.getTabbarService(SlotLocation.right);
+        right.resizeHandle?.setSize(438);
       } catch {
         /* ignore */
       }
@@ -84,8 +91,8 @@ export function LayoutComponent(): React.ReactElement {
           <SlotRenderer
             slot={SlotLocation.right}
             isTabbar
-            defaultSize={335}
-            minResize={280}
+            defaultSize={438}
+            minResize={320}
             minSize={49}
           />
         </SplitPanel>

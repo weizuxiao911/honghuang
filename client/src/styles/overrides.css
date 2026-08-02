@@ -16,12 +16,6 @@
   border-radius: 0;
 }
 
-/* 编辑器顶部 tab 栏("欢迎使用 ×" 那一行):背景透明, 透出 codeblitz-root 统一深色 */
-[class*="editorGroupHeader___"] {
-  background: transparent !important;
-  border-radius: 0;
-}
-
 /* 编辑器面包屑 → 隐藏。 */
 .kt-navigation-container {
   display: none !important;
@@ -42,44 +36,22 @@
   border-radius: 0px !important;
 }
 
-/* 槽位间的拖拽把手：左右各加 4px padding, 拖动热区更友好 */
-[class*="resize-handle-vertical"] {
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-/* CodeBlitz 默认 welcome 页面("Codeblitz / 基于 OpenSumi 的纯前端版 IDE 框架" 大字)隐藏;
-   client 不写欢迎页, 默认 welcome 留空即可。 */
+/* CodeBlitz 默认 welcome 页面隐藏; client 自己提供欢迎体验 */
 [class*="container___njvHL"] {
   display: none !important;
 }
 
-/* 编辑器 active tab 背景透明, 跟 IDE 整体统一 */
-[class*="design-editor_tab_block_container"][class*="active"] {
-  border-radius: 0 !important;
-}
-
-/* inactive tab 也清圆角 + 透明, 跟 active 一致 */
+/* 编辑器 active/inactive tab 清圆角 */
 [class*="design-editor_tab_block_container"] {
   border-radius: 0 !important;
 }
 
-/* BoxPanel + SplitPanel 各槽位间的视觉间隔:
-   CodeBlitz 用 flex 布局 slot, 加 gap 让 left/main/right/bottom 之间有透明间隔, 跟整体深色分离感 */
+/* BoxPanel + SplitPanel: 三面板背景统一后, 槽位间不需要 gap */
 [class*="box-panel"] {
-  gap: 4px !important;
+  gap: 0 !important;
 }
 [class*="split-panel"] {
-  gap: 4px !important;
-}
-
-/* 各槽位背景分层: 让 top 跟 codeblitz-root 区分色, 视觉上独立 */
-.tc-topbar {
-  background: #2d3139 !important;
-}
-
-/* 各 split 槽位间不强制加 border, 留给框架默认处理 */
-[class*="split-panel"] {
+  gap: 0 !important;
   border-radius: 0 !important;
 }
 
@@ -91,4 +63,101 @@
 [class*="pane-content"],
 [class*="panel-tab"] {
   border: none !important;
+}
+
+/* ============= 主题变量 ============= */
+:root {
+  --tc-panel-bg: var(--editor-background, #181818);
+  --tc-panel-fg: var(--editor-foreground, #e5e7eb);
+  --tc-border: rgba(255, 255, 255, 0.05);
+}
+
+/* 编辑器组件本体背景统一 (#151b21 → #181818) */
+.kt_editor_component___hOjMR,
+.kt_editor_components___cmFFV,
+.kt_editor_body___HSrwN,
+.kt_workbench_editor___JmqFp,
+.kt_editor_group____46Ak,
+.kt_editor_main_wrapper___x1f2H {
+  background: var(--tc-panel-bg) !important;
+}
+
+.codeblitz-root .box-panel___wfGj8,
+.codeblitz-root .split-panel___M3qwE,
+.tc-right-panel,
+.tc-ai {
+  background: var(--tc-panel-bg) !important;
+}
+
+/* 左侧栏容器 / 右侧面板容器 / 底部面板容器, 背景统一 */
+[class*="left_slot___"],
+[class*="right_slot___"],
+[class*="bottom_slot___"],
+[class*="design_left_slot"],
+[class*="design_right_slot"],
+[class*="design_bottom_slot"],
+.tc-right-panel,
+.tc-right-panel__body,
+.tc-right-panel .kt-tab-panel,
+.tc-right-panel [class*="view_container___"],
+.tc-right-panel [class*="panel_wrap___"] {
+  background: var(--tc-panel-bg) !important;
+}
+
+/* 编辑器顶部 tab 栏 ("欢迎使用" 那一行) 背景统一 */
+[class*="editorGroupHeader___"],
+[class*="editor-tabs-container"],
+[class*="tab_bar___"] {
+  background: var(--tc-panel-bg) !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+/* 底部面板（问题/输出）背景统一 */
+[class*="bottom_bar_container___"],
+.tab_bar_container___,
+.tab_bar___oRZy7 {
+  background: var(--tc-panel-bg) !important;
+}
+
+/* 顶栏背景统一 + 底边线 */
+.tc-topbar {
+  background: var(--tc-panel-bg) !important;
+  border-bottom: 1px solid var(--tc-border);
+}
+
+/* ============= 三面板之间的 1px 边界线 =============
+   只在 left / main 右边缘画线 (left|main, main|right),
+   right 面板不再重复画线, 避免双粗线. */
+[class*="resize-handle-horizontal"] {
+  background: transparent !important;
+  z-index: 3;
+}
+
+/* 非 last-child 的面板右边缘画分隔线 */
+.split-panel___M3qwE > div:not([class*="resize-handle"]):not(:last-child) {
+  position: relative;
+}
+.split-panel___M3qwE > div:not([class*="resize-handle"]):not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  background: var(--tc-border);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* 底部面板顶边线 */
+[class*="bottom_slot___"],
+[class*="design_bottom_slot"] {
+  border-top: 1px solid var(--tc-border) !important;
+}
+
+/* ============= 右侧 AI 面板 ============= */
+/* 隐藏 OpenSumi view-container 顶部标题条 ("AI 助手" h1), AiPanel 自带顶栏 */
+.tc-right-panel [class*="view_container___"] > [class*="titlebar___"] {
+  display: none !important;
 }

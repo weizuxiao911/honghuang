@@ -48,40 +48,15 @@ export const RightPanelRenderer: React.FC<{ components: ComponentRegistryInfo[] 
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           user-select: none;
         }
-        .tc-right-tabbar {
-          display: flex;
-          align-items: center;
-          gap: 2px;
-          height: 32px;
-          padding: 0 8px;
-          flex-shrink: 0;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(255, 255, 255, 0.02);
+        /* 顶部 tab 横条隐藏: AiPanel 自带顶栏 (Taichu brand + 历史/新建) */
+        .tc-right-panel .tc-right-tabbar {
+          display: none !important;
         }
-        .tc-right-tabbar__tab {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          height: 24px;
-          padding: 0 10px;
-          border: none;
-          background: transparent;
-          color: var(--descriptionForeground, #8b929b);
-          font-size: 12px;
-          cursor: pointer;
-          border-radius: 4px;
-          transition: color 0.15s, background 0.15s;
-        }
-        .tc-right-tabbar__tab:hover {
-          color: var(--foreground, #e5e7eb);
-          background: rgba(255, 255, 255, 0.06);
-        }
-        .tc-right-tabbar__tab.is-active {
-          color: #c7d2fe;
-          background: rgba(99, 102, 241, 0.14);
-        }
-        .tc-right-tabbar__tab .codicon {
-          font-size: 14px;
+        /* 隐藏 OpenSumi 面板标题条 ("AI 助手"), AiPanel 顶栏已含标题 */
+        .tc-right-panel .kt-accordion-panel-titlebar,
+        .tc-right-panel .design-titlebar___jveiR,
+        .tc-right-panel [class*="titlebar___"] {
+          display: none !important;
         }
         .tc-right-panel__body {
           flex: 1 1 0;

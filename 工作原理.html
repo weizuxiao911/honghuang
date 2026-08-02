@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taichu 太初 · 沙箱运行时工作机制</title>
+<style>
+  :root {
+    --blue: #7BA7E0; --blue-bg: #E8F0FE; --blue-fg: #F4F8FE;
+    --green: #5FA56B; --green-bg: #E6F4EA; --green-fg: #F3FAF4;
+    --orange: #D99A4E; --orange-bg: #FDEEE0; --orange-fg: #FFF7EE;
+    --red: #D0836F; --red-bg: #FCE8E6; --red-fg: #FFF8F7;
+    --purple: #A479C9; --purple-bg: #F3E8FD; --purple-fg: #FAF5FE;
+    --yellow: #C9A93C; --yellow-bg: #FFF8E1; --yellow-fg: #FFFDF2;
+    --gray: #9E9E9E; --gray-bg: #EDEDED; --gray-fg: #F7F7F7;
+    --ink: #333;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif; background: #e8eaed; color: var(--ink); height: 100vh; overflow: hidden; margin: 0; font-weight: 600; }
+
+  nav.tabs {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    display: flex; gap: 8px; justify-content: center; padding: 8px 10px;
+    background: #fff; border-bottom: 1px solid #ddd; height: 48px; box-sizing: border-box;
+  }
+  nav.tabs button {
+    padding: 6px 20px; border: 1px solid #bbb; border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: 14px;
+  }
+  nav.tabs button.active { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: bold; }
+
+  /* 屏幕: 保持 B5 横向宽比 (980:690) 整体缩放为一屏, 在导航栏下方区域居中 */
+  .page {
+    display: none; position: absolute; left: 50%; top: calc(50% + 24px);
+    width: 980px; height: 690px; background: #fff; padding: 10px;
+    transform: translate(-50%, -50%) scale(var(--s, 1));
+    transform-origin: center; box-shadow: 0 4px 24px rgba(0,0,0,.15);
+  }
+  .page.active { display: block; }
+
+  /* 打印: B5 横向纸型 (250x176mm @96dpi = 944.88x665.19px), 直接设页面尺寸, 不用 transform (布局尺寸与纸张精确一致, 避免溢出产生空白页); 内容垂直水平居中 */
+  @media print {
+    @page { size: 250mm 176mm; margin: 0; }
+    body { height: auto; overflow: visible; background: #fff; }
+    nav.tabs { display: none; }
+    .page {
+      position: static; left: auto; top: auto; box-shadow: none;
+      width: 944.88px; height: 665.19px; transform: none;
+      display: flex !important; flex-direction: column;
+      align-items: center; justify-content: center;
+      page-break-after: always;
+    }
+    .page > * { width: 100%; flex-shrink: 0; }
+    .page:last-child { page-break-after: auto; }
+  }
+
+  h1 { font-size: 17px; text-align: center; margin: 4px 0 2px; }
+  .subtitle { font-size: 9px; text-align: center; color: #888; margin-bottom: 6px; }
+
+  .lane {
+    border: 2px solid; border-radius: 8px; padding: 6px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .lane-title { font-size: 11px; font-weight: bold; padding-bottom: 2px; border-bottom: 1px dashed #ccc; margin-bottom: 2px; }
+  .card {
+    border: 1px solid; border-radius: 6px; background: #fff;
+    padding: 5px 7px; font-size: 9.5px; line-height: 1.35;
+  }
+  .card b { display: block; font-size: 10px; }
+  .arrow-col { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px; width: 78px; flex-shrink: 0; }
+  .arrow-col .lbl { font-size: 9px; color: var(--ink); background: #fff; border: 1px dashed #bbb; border-radius: 4px; padding: 2px 4px; text-align: center; }
+  .arrow { font-size: 18px; color: #555; }
+
+  .main-row { display: flex; gap: 6px; margin-top: 4px; }
+  .lane-blue   { border-color: var(--blue);   background: var(--blue-bg);   }
+  .lane-green  { border-color: var(--green);  background: var(--green-bg);  }
+  .lane-orange { border-color: var(--orange); background: var(--orange-bg); }
+  .lane-red    { border-color: var(--red);    background: var(--red-bg);    }
+  .lane-purple { border-color: var(--purple); background: var(--purple-bg); }
+  .lane-yellow { border-color: var(--yellow); background: var(--yellow-bg); }
+  .lane-gray   { border-color: var(--gray);   background: var(--gray-bg);   }
+
+  .c-blue   { border-color: var(--blue);   }
+  .c-green  { border-color: var(--green);  }
+  .c-orange { border-color: var(--orange); }
+  .c-red    { border-color: var(--red);    }
+  .c-purple { border-color: var(--purple); }
+  .c-yellow { border-color: var(--yellow); }
+  .c-gray   { border-color: var(--gray);   }
+
+  .bottom-row { display: flex; gap: 6px; margin-top: 6px; }
+  .steps { display: flex; align-items: center; gap: 2px; flex: 1; }
+  .step {
+    flex: 1; border: 1px solid var(--green); border-radius: 6px; background: #fff;
+    text-align: center; padding: 4px 2px; font-size: 8.5px; line-height: 1.3;
+  }
+  .step.red { border-color: var(--red); }
+  .step .n { font-weight: bold; }
+  .step-arrow { color: #888; font-size: 12px; flex-shrink: 0; }
+
+  .flow { display: flex; flex-direction: column; gap: 4px; }
+  .flow-step {
+    border: 1px solid var(--green); border-radius: 6px; background: #fff;
+    padding: 5px 8px; font-size: 9.5px;
+  }
+  .flow-step .fa { font-size: 12px; color: var(--green); }
+  .branch { display: flex; gap: 6px; }
+  .branch .flow-step { flex: 1; }
+  .branch .ok { border-color: #1B7837; background: #F0FBF2; }
+  .branch .no { border-color: #B3261E; background: #FEF2F1; }
+
+  .lua { border: 2px solid var(--yellow); border-radius: 8px; background: var(--yellow-fg); padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+  .lua-title { font-size: 10px; font-weight: bold; }
+  .lua-step { border: 1px solid var(--yellow); border-radius: 4px; background: #fff; padding: 3px 6px; font-size: 8.5px; }
+
+  .note { font-size: 8.5px; color: #666; margin-top: 4px; }
+  .footer { font-size: 9px; text-align: center; color: #666; font-style: italic; margin-top: 6px; }
+
+  table.cfg { width: 100%; border-collapse: collapse; font-size: 9px; }
+  table.cfg th { background: #DDEBF7; border: 1px solid #9E9E9E; padding: 3px 6px; text-align: left; }
+  table.cfg td { border: 1px solid #9E9E9E; padding: 3px 6px; }
+  table.cfg tr.hl td { background: #FFF3D6; }
+
+  .rule-cards { display: flex; gap: 8px; }
+  .rule { border: 1px solid; border-radius: 8px; background: #fff; padding: 8px; font-size: 9px; line-height: 1.5; flex: 1; }
+  .rule h3 { font-size: 11px; margin-bottom: 4px; }
+
+  .lanes-2col { display: flex; gap: 6px; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<nav class="tabs">
+  <button class="active" data-page="p1">1 总体架构</button>
+  <button data-page="p2">2 生命周期</button>
+  <button data-page="p3">3 回收机制</button>
+  <button data-page="p4">4 配置速查</button>
+</nav>
+
+<!-- ==================== 页面 1: 总体架构 ==================== -->
+<div class="page active" id="p1">
+  <h1>Taichu 太初 · 总体架构与端到端闭环</h1>
+  <div class="subtitle">页面 1/4 · B5 横向 · 数据来源: 架构设计.md 第三章/第四章 + gateway 实现 (2026-08)</div>
+
+  <div class="main-row">
+    <div class="lane lane-blue" style="flex:1.6">
+      <div class="lane-title">client 交互平面 (浏览器 IDE)</div>
+      <div class="card c-blue"><b>登录会话</b>X-User-Id / X-Tenant-Id (localStorage / OAuth)</div>
+      <div class="card c-blue"><b>fs 文件通道</b>sandbox: scheme 映射到 {runtimeId} 子域名</div>
+      <div class="card c-blue"><b>OpenCode SDK / AI</b>A2UI 增量渲染 + MCP 消费</div>
+      <div class="card c-blue"><b>SSE 平台事件流</b>GET /runtime/events (initial / heartbeat / 事件)</div>
+    </div>
+
+    <div class="arrow-col">
+      <div class="lbl">① POST /runtime</div>
+      <div class="arrow">→</div>
+      <div class="lbl">④ fs/对话<br>子域名请求</div>
+    </div>
+
+    <div class="lane lane-green" style="flex:2.8">
+      <div class="lane-title">gateway 调度平面 (Spring Cloud Gateway + Fabric8 + WebFlux)</div>
+      <div class="card c-green"><b>RuntimeRoutingFilter</b>子域名 / Header 路由 + 流量续约触发 (⑤)</div>
+      <div class="card c-green"><b>RuntimeService</b>创建 / 复用 / 状态机 (PENDING→READY→回收)</div>
+      <div class="card c-green"><b>RuntimeSweeper</b>兜底巡检 (informer 缓存, 零 API 轮询)</div>
+      <div class="card c-green"><b>RedisExpiryListener</b>回收主链路 (订阅 __keyevent@*__:expired)</div>
+      <div class="card c-green"><b>RuntimeRecycler</b>删 Deployment/Service + 广播 RECYCLED (幂等)</div>
+    </div>
+
+    <div class="arrow-col">
+      <div class="lbl">② 索引查询/复用<br>⑤ 流量续约</div>
+      <div class="arrow">↔</div>
+      <div class="lbl">⑥ 过期事件</div>
+    </div>
+
+    <div class="lane lane-orange" style="flex:1.6">
+      <div class="lane-title">Redis 状态中枢 (taichu-infra, db0)</div>
+      <div class="card c-orange"><b>双索引 (TTL 600s)</b>user ⇄ runtime, Lua 原子双写/双续</div>
+      <div class="card c-orange"><b>节流 key (PX 5s)</b>renew-throttle:{id}, 多副本共享</div>
+      <div class="card c-orange"><b>keyspace 通知</b>notify-keyspace-events Ex → __keyevent@0__:expired</div>
+    </div>
+
+    <div class="arrow-col">
+      <div class="lbl">③ 创建 Pod<br>⑦ 回收</div>
+      <div class="arrow">→</div>
+      <div class="lbl">⑧ A2UI SSE<br>流式回写</div>
+    </div>
+
+    <div class="lane lane-red" style="flex:2.4">
+      <div class="lane-title">K8s 运行时平面 (namespace: taichu-runtime)</div>
+      <div class="card c-red"><b>Deployment + Service</b>gateway-{runtimeId}, label: runtimeId</div>
+      <div class="card c-red"><b>PVC workspace (subPath)</b>{user}/runtime + {user}/global, 回收后数据留存</div>
+      <div class="lane lane-yellow" style="border-width:1px">
+        <div class="lane-title">agent-image 沙箱 Pod ×N</div>
+        <div class="card c-yellow"><b>OpenCode 内核 :4096</b>推理 + MCP 反向调用</div>
+        <div class="card c-yellow"><b>/global/health 探活</b>A2UI / PTY 输出</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-row">
+    <div class="lane lane-purple" style="width:190px; flex-shrink:0">
+      <div class="lane-title">registry 旁路 (与运行时解耦)</div>
+      <div class="card c-purple"><b>VSIX 元数据 + RBAC + CDN</b>启动期一次拉取清单, 不参与运行时</div>
+    </div>
+    <div class="lane lane-gray" style="flex:1">
+      <div class="lane-title">端到端闭环</div>
+      <div class="steps">
+        <div class="step"><div class="n">① 登录</div>POST /runtime</div><span class="step-arrow">→</span>
+        <div class="step"><div class="n">② 创建/复用</div>Pod + Redis 索引</div><span class="step-arrow">→</span>
+        <div class="step"><div class="n">③ 探活 READY</div>SSE 通知</div><span class="step-arrow">→</span>
+        <div class="step"><div class="n">④ fs/对话</div>子域名反代</div><span class="step-arrow">→</span>
+        <div class="step"><div class="n">⑤ 流量续约</div>Lua 节流+续满</div><span class="step-arrow">→</span>
+        <div class="step red"><div class="n">⑥ TTL 耗尽</div>双链路回收</div><span class="step-arrow">→</span>
+        <div class="step red"><div class="n">⑦ PVC 留存</div>秒级重建</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">页面 1/4 · 双通道寻址 (子域名 Host / x-runtime-id Header) · 鉴权 Header 由 gateway 注入透传</div>
+</div>
+
+<!-- ==================== 页面 2: 生命周期 ==================== -->
+<div class="page" id="p2">
+  <h1>Taichu 太初 · 沙箱生命周期: 创建 / 复用 / 续约</h1>
+  <div class="subtitle">页面 2/4 · B5 横向 · 续约规则: 剩余 TTL ≤ min(阈值, 上限) 才续满全量 TTL</div>
+
+  <div class="lanes-2col">
+    <div class="lane lane-green" style="flex:1">
+      <div class="lane-title">创建与复用流程 (RuntimeService 状态机)</div>
+      <div class="flow">
+        <div class="flow-step">① client 登录成功 → POST /runtime (X-User-Id, X-Tenant-Id)</div>
+        <div class="flow-step">② gateway 查 Redis: {prefix}:user:{userId} → snapshot</div>
+        <div class="flow-step">③ 命中可复用状态 (PENDING/CREATING/RUNNING/READY)?</div>
+        <div class="branch">
+          <div class="flow-step ok">是 → 复用: 续约判断 + INITIAL_STATE → 秒级 READY</div>
+          <div class="flow-step no">否 → 新建: 落索引 PENDING → 后台创建 K8s Pod</div>
+        </div>
+        <div class="flow-step">④ 探活 /global/health (轮询, 超时判 FAILED) → READY → SSE 事件 → 返回 agentApiBase</div>
+        <div class="flow-step" style="border-color:var(--blue); background:var(--blue-fg)">客户端拿到 baseUrl → fs 通道 / OpenCode SDK / SSE 事件流全部就绪</div>
+      </div>
+    </div>
+
+    <div class="lane lane-orange" style="flex:1.2">
+      <div class="lane-title">续约机制 (有操作才续约)</div>
+      <div class="card c-orange"><b>触发路径</b>① 所有走 runtime 的请求 (子域名 + /agent/*, RuntimeRoutingFilter#renewIfNeeded) ② POST /runtime 复用 (RuntimeService#reuseExisting)</div>
+      <div class="lua">
+        <div class="lua-title">Lua 原子续约 (RENEW_IF_LOW_LUA · 单次往返, 无竞态, 多副本共享)</div>
+        <div class="lua-step">① EXISTS {prefix}:renew-throttle:{runtimeId} ? → 命中 (5s 窗口内) 直接跳过</div>
+        <div class="lua-step">② PTTL 双索引剩余 → 剩余 ≤ min(renew-threshold-seconds, renew-threshold-max-seconds) ?</div>
+        <div class="lua-step">③ 是 → PEXPIRE 双 key 续满 ttl (600s); 否 → 不续约, 仅记录判断</div>
+        <div class="lua-step">④ SET 节流 key PX 5s → 下次判断最早在 5s 后 (节流状态存 Redis, 无内存表)</div>
+      </div>
+      <div class="card c-gray"><b>配置项 (gateway.runtime.*, ConfigMap 与 application.yml 同步)</b>
+        ttl = 600s (空闲 TTL, 续满目标)<br>
+        renew-throttle-seconds = 5s (流量续约节流窗口, Redis 共享)<br>
+        renew-threshold-seconds = 180s (续约阈值)<br>
+        renew-threshold-max-seconds = 180s (阈值硬上限, 禁止代码硬编码)<br>
+        生效阈值 = min(阈值, 上限); 活跃期剩余时间维持 3~10 分钟
+      </div>
+    </div>
+  </div>
+  <div class="footer">页面 2/4 · 续约判断由 Lua 原子完成, 与流量节流合并为一次往返; 续约失败只告警不影响转发</div>
+</div>
+
+<!-- ==================== 页面 3: 回收机制 ==================== -->
+<div class="page" id="p3">
+  <h1>Taichu 太初 · 沙箱回收机制 (双链路, 缺一不可)</h1>
+  <div class="subtitle">页面 3/4 · B5 横向 · 回收判定 = Redis 索引 key 过期 (存在性), 与剩余时间无关</div>
+
+  <div class="lane lane-orange">
+    <div class="lane-title">主链路: Redis keyspace 过期通知 (实时)</div>
+    <div class="steps">
+      <div class="step"><div class="n">Redis 双索引</div>TTL 600s 耗尽 → key 消失</div><span class="step-arrow">→</span>
+      <div class="step"><div class="n">PUBLISH expired 事件</div>__keyevent@0__:expired (前提: notify-keyspace-events Ex)</div><span class="step-arrow">→</span>
+      <div class="step"><div class="n">RedisExpiryListener</div>订阅 + 过滤 {prefix}:runtime: 前缀, 解析 runtimeId</div><span class="step-arrow">→</span>
+      <div class="step"><div class="n">RuntimeRecycler</div>幂等删 Deployment+Service, 广播 RECYCLED → client SSE</div>
+    </div>
+    <div class="note">说明: gateway 多副本同时订阅同频道, 重复事件经幂等删除吸收; 快照已随 TTL 删除, 按命名规则重建最小快照 (gateway-{runtimeId}), userId 从 Deployment env X_USER_ID 反查</div>
+  </div>
+
+  <div class="lane lane-red" style="margin-top:6px">
+    <div class="lane-title">兜底: informer 缓存巡检 (每 5 分钟, 对 K8s API server 零轮询)</div>
+    <div class="steps">
+      <div class="step"><div class="n">Fabric8 Informer</div>启动一次 list + watch 增量, 断线自动重连, resync=0</div><span class="step-arrow">→</span>
+      <div class="step"><div class="n">RuntimeSweeper</div>@Scheduled 每 sweep-interval-seconds (300s), 巡检只读本地 store</div><span class="step-arrow">→</span>
+      <div class="step"><div class="n">孤儿判定 (同时满足)</div>① 创建超过宽限期 600s ② Redis 无 {prefix}:runtime:{id} 索引</div><span class="step-arrow">→</span>
+      <div class="step"><div class="n">命中孤儿</div>→ RuntimeRecycler 回收 (与主链路同一执行器)</div>
+    </div>
+    <div class="note">安全设计: Redis 对账异常跳过本轮 (不因 Redis 故障误删活沙箱); 对账一次 multiGet 批量完成; 宽限期防创建中竞态误判 (先落索引再建 Deployment)</div>
+  </div>
+
+  <div class="lane lane-green" style="margin-top:6px">
+    <div class="lane-title">回收效果与数据留存 (设计文档第四章流程 6)</div>
+    <div class="rule-cards">
+      <div class="rule c-green"><h3>删除范围</h3>
+        · Deployment + Service (Pod 随之消失)<br>
+        · 广播 RECYCLED SSE 事件<br>
+        · 幂等: 404 视为成功
+      </div>
+      <div class="rule c-green"><h3>保留范围 (数据留存)</h3>
+        · 共享 PVC agent-image-workspace 不删<br>
+        · subPath {user}/runtime + {user}/global 隔离<br>
+        · 下次登录秒级重建, 工作区数据不丢
+      </div>
+    </div>
+  </div>
+  <div class="footer">页面 3/4 · 主链路漏回收 (Redis 未开通知 / 订阅断线 / 消息丢失) 时, 兜底巡检自动兜住</div>
+</div>
+
+<!-- ==================== 页面 4: 配置与规则速查 ==================== -->
+<div class="page" id="p4">
+  <h1>Taichu 太初 · 配置与规则速查</h1>
+  <div class="subtitle">页面 4/4 · B5 横向 · 三处配置必须同步: 集群 ConfigMap gateway-config / 本地 application.yml / deploy/k8s/redis.yaml</div>
+
+  <div class="lane lane-gray">
+    <div class="lane-title">配置项一览 (gateway.runtime.* 与部署清单)</div>
+    <table class="cfg">
+      <tr><th>配置项 / 部署清单</th><th style="width:70px">默认值</th><th>说明</th></tr>
+      <tr><td>gateway.runtime.ttl</td><td>600s</td><td>运行时空闲 TTL, 也是续满目标</td></tr>
+      <tr><td>gateway.runtime.renew-throttle-seconds</td><td>5s</td><td>流量续约节流窗口, 状态存 Redis 多副本共享, 须小于 ttl</td></tr>
+      <tr><td>gateway.runtime.renew-threshold-seconds</td><td>180s</td><td>续约阈值: 剩余 TTL ≤ 该值才续满</td></tr>
+      <tr><td>gateway.runtime.renew-threshold-max-seconds</td><td>180s</td><td>阈值硬上限 (生效阈值 = min), 禁止代码硬编码</td></tr>
+      <tr><td>gateway.runtime.reclaim.sweep-enabled</td><td>true</td><td>兜底巡检开关</td></tr>
+      <tr><td>gateway.runtime.reclaim.sweep-interval-seconds</td><td>300s</td><td>兜底巡检间隔</td></tr>
+      <tr><td>gateway.runtime.reclaim.sweep-initial-delay-seconds</td><td>30s</td><td>启动后首轮巡检延迟</td></tr>
+      <tr><td>gateway.runtime.reclaim.sweep-grace-seconds</td><td>600s</td><td>孤儿宽限期 (默认 = ttl), 防创建中误判</td></tr>
+      <tr class="hl"><td>redis.yaml: notify-keyspace-events Ex</td><td>必带</td><td>主链路前提, 移除则回收只剩兜底; 命名空间 taichu-infra / taichu-runtime</td></tr>
+      <tr><td>gateway.runtime.sse-heartbeat-seconds</td><td>15s</td><td>SSE 心跳间隔 (维持长连接, 无独立续约子流)</td></tr>
+    </table>
+  </div>
+
+  <div style="margin-top:6px">
+    <div class="rule-cards">
+      <div class="rule c-green"><h3>续约规则</h3>
+        · 剩余 TTL ≤ min(阈值, 上限) → 续满 ttl<br>
+        · 触发: 走 runtime 流量 (5s Redis 节流) + POST 复用<br>
+        · Lua 原子, 无内存状态, 多副本共享
+      </div>
+      <div class="rule c-red"><h3>回收规则</h3>
+        · 判定: Redis 索引 key 过期 (存在性)<br>
+        · 主链路: keyspace expired 事件实时回收<br>
+        · 兜底: informer 巡检孤儿 (每 5min, 零轮询)
+      </div>
+      <div class="rule c-gray"><h3>边界约束</h3>
+        · 回收只删 Deployment/Service, PVC 不删<br>
+        · gateway 不渲染 UI / 不解析 A2UI<br>
+        · registry 不参与运行时 / 沙箱不参与调度
+      </div>
+    </div>
+  </div>
+
+  <div class="lane lane-green" style="margin-top:6px">
+    <div class="lane-title">实测验证记录 (2026-08-03, docker-desktop 单节点)</div>
+    <div class="rule-cards">
+      <div class="rule c-green"><h3>验证</h3>
+        · 回收链路: 10 个孤儿 pod (3 用户) → 部署回收后 30s 内自动清至仅活跃沙箱<br>
+        · 增量续约: 双索引降 TTL 100s → 发请求 → 双 key 续满 599s<br>
+        · 节流: 续满后 5s 窗口内再请求 → TTL 不动 (Redis 节流 key 生效)<br>
+        · 阈值: 剩余 566s (&gt;180s) 请求不续约, 符合规则
+      </div>
+      <div class="rule c-green"><h3>维护要点</h3>
+        · 改 TTL/续约/回收配置: ConfigMap + application.yml + redis.yaml 三处同步<br>
+        · @Scheduled placeholder 一律带默认值, 防 ConfigMap 未同步启动失败<br>
+        · 巡检禁止 list K8s API, 必须 informer 缓存
+      </div>
+    </div>
+  </div>
+  <div class="footer">页面 4/4 · 详细实现见 gateway 模块: RuntimeService / RuntimeRoutingFilter / RedisExpiryListener / RuntimeSweeper / RuntimeRecycler</div>
+</div>
+
+<script>
+  const tabs = document.querySelectorAll('nav.tabs button');
+  tabs.forEach(btn => btn.addEventListener('click', () => {
+    tabs.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(btn.dataset.page).classList.add('active');
+  }));
+
+  // 按视口尺寸计算缩放比例, 保持 B5 横向宽比完整显示
+  function fit() {
+    const s = Math.min(window.innerWidth / 980, (window.innerHeight - 52) / 690);
+    document.documentElement.style.setProperty('--s', Math.max(s, 0.5).toFixed(4));
+  }
+  window.addEventListener('resize', fit);
+  fit();
+</script>
+</body>
+</html>

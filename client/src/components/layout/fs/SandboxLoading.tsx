@@ -26,18 +26,28 @@ export const SandboxLoading: React.FC = () => {
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<Error | null>(null);
   const [runtimeId, setRuntimeId] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [nextInMs, setNextInMs] = useState<number | null>(null);
 
   useEffect(() => {
     const onLoading = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       setPhase(detail.phase || 'fetching-runtime');
-      setError(null);
+      setError(detail.error ? new Error(String(detail.error)) : null);
+      if (typeof detail.retryCount === 'number') setRetryCount(detail.retryCount);
+      if (typeof detail.nextInMs === 'number') setNextInMs(detail.nextInMs);
+      else if (detail.retryCount == null) {
+        setRetryCount(0);
+        setNextInMs(null);
+      }
     };
     const onReady = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       setRuntimeId(detail.runtimeId || null);
       setPhase('idle');
       setError(null);
+      setRetryCount(0);
+      setNextInMs(null);
     };
     const onError = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -52,6 +62,8 @@ export const SandboxLoading: React.FC = () => {
       setPhase('idle');
       setError(null);
       setRuntimeId(null);
+      setRetryCount(0);
+      setNextInMs(null);
     };
 
     window.addEventListener('taichu:fs-loading', onLoading);
@@ -69,25 +81,6 @@ export const SandboxLoading: React.FC = () => {
 
   if (phase === 'idle') return null;
 
-  const retry = () => {
-    const sess = (window as any).__TAICHU_DEPLOY_CONFIG__?.userId
-      ? null
-      : (() => {
-          try {
-            const raw = localStorage.getItem('taichu.login.session');
-            return raw ? JSON.parse(raw) : null;
-          } catch {
-            return null;
-          }
-        })();
-    if (sess?.userId) {
-      window.dispatchEvent(new CustomEvent('taichu:login-session-changed', { detail: sess }));
-    } else {
-      // 没 session 退回 login
-      window.dispatchEvent(new CustomEvent('taichu:login-show'));
-    }
-  };
-
   const logout = () => {
     try {
       localStorage.removeItem('taichu.login.session');
@@ -101,6 +94,8 @@ export const SandboxLoading: React.FC = () => {
     );
     window.dispatchEvent(new CustomEvent('taichu:login-show'));
   };
+
+  const nextInSec = nextInMs ? Math.max(1, Math.round(nextInMs / 1000)) : null;
 
   return (
     <div className="tc-sandbox-loading">
@@ -256,45 +251,35 @@ export const SandboxLoading: React.FC = () => {
       `}</style>
 
       <div className="tc-sandbox-loading__card">
-        {phase === 'error' ? (
-          <>
-            <div className="tc-sandbox-loading__error">!</div>
-            <h3 className="tc-sandbox-loading__error-title">沙箱启动失败</h3>
-            <p className="tc-sandbox-loading__error-msg">
-              {error?.message || '未知错误'}
-            </p>
-            <div className="tc-sandbox-loading__actions">
-              <button
-                className="tc-sandbox-loading__btn"
-                onClick={logout}
-              >
-                退出登录
-              </button>
-              <button
-                className="tc-sandbox-loading__btn tc-sandbox-loading__btn--primary"
-                onClick={retry}
-              >
-                重试
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="tc-sandbox-loading__spinner">
-              <div className="tc-sandbox-loading__spinner-ring" />
-              <div className="tc-sandbox-loading__spinner-ring" />
-            </div>
-            <h3 className="tc-sandbox-loading__title">加载 sandbox 中</h3>
-            <p className="tc-sandbox-loading__hint">
-              预计需等待 <code>3 ~ 10s</code>
-            </p>
-            <div className="tc-sandbox-loading__progress" />
-            <p className="tc-sandbox-loading__hint" style={{ marginTop: 12, fontSize: 11 }}>
-              {runtimeId
-                ? `runtime: ${runtimeId}`
-                : '正在初始化沙箱 runtime (K8s Pod + sandbox 探活) ...'}
-            </p>
-          </>
+        <div className="tc-sandbox-loading__spinner">
+          <div className="tc-sandbox-loading__spinner-ring" />
+          <div className="tc-sandbox-loading__spinner-ring" />
+        </div>
+        <h3 className="tc-sandbox-loading__title">
+          {retryCount > 0 ? '沙箱启动中，正在重试' : '加载 sandbox 中'}
+        </h3>
+        <p className="tc-sandbox-loading__hint">
+          {retryCount > 0
+            ? `已尝试 ${retryCount} 次${nextInSec ? `，${nextInSec}s 后自动重试` : ''}`
+            : '预计需等待 3 ~ 10s'}
+        </p>
+        <div className="tc-sandbox-loading__progress" />
+        <p className="tc-sandbox-loading__hint" style={{ marginTop: 12, fontSize: 11 }}>
+          {runtimeId
+            ? `runtime: ${runtimeId}`
+            : error?.message
+              ? String(error.message).slice(0, 120)
+              : '正在初始化沙箱 runtime (K8s Pod + sandbox 探活) ...'}
+        </p>
+        {retryCount > 0 && (
+          <div style={{ marginTop: 18 }}>
+            <button
+              className="tc-sandbox-loading__btn"
+              onClick={logout}
+            >
+              退出登录
+            </button>
+          </div>
         )}
       </div>
     </div>

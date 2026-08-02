@@ -82,7 +82,7 @@ export class AiCommandsContribution implements CommandContribution {
     commands.registerCommand(
       { id: AI_CMD.A2UI_QUESTION_REPLY },
       {
-        execute: (sessionID: string, requestID: string, answers: string[]) =>
+        execute: (sessionID: string, requestID: string, answers: string[][]) =>
           aiReplyQuestion(sessionID, requestID, answers),
       }
     );

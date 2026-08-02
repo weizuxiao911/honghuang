@@ -13,14 +13,9 @@ import { assertFsReady, getFsClient } from './api';
  *   taichu.fs.write  (path, content)   → void        写文件 (create or overwrite)
  *   taichu.fs.find   (path, pattern?)  → string[]    搜索文件
  *
- * 全部走 @opencode-ai/sdk client 的 session.shell (OpenCode Agent bash tool):
- *   1. session.create({ body: { agent: 'build' } })  创建会话
- *   2. session.shell({ sessionID, command, agent })  跑 shell 命令
- *   3. 从返回 parts 里找 tool=bash 的 state.output 拿输出
- *
- * 实测: /file /find/file 在 OpenCode v1.18.10 服务端有参数解析 bug (Missing key),
- * PTY 生命周期太短 (命令跑完 session 即销毁, 读不到输出),
- * session.shell 是唯一可用的同步执行通道.
+ * 实现策略:
+ *   - list / read / find 走 v2.fs API (GET /api/fs/*, 不创建会话)
+ *   - write / mkdir 走 session.shell (agent build bash tool, 复用 shell 会话)
  *
  * Module: FsCommandsModule, appConfig.modules: [FsCommandsModule] 注入 DI.
  */
@@ -32,63 +27,118 @@ export const FS_CMD = {
   FIND: 'taichu.fs.find',
 } as const;
 
-const SHELL_AGENT = 'build';
 const SHELL_TIMEOUT_MS = 30000;
 
-/** state.output 可能是 string / Buffer(类数组) / 数组, 统一转 string */
-function normalizeOutput(output: any): string {
-  if (output == null) return '';
-  if (typeof output === 'string') return output;
-  // Buffer / Uint8Array / 类数组 (如 { 0: 't', 1: 'a', ... })
-  if (typeof output.length === 'number') {
-    // 数字索引的字符数组
-    if (Array.from(output).every((c) => typeof c === 'number' || typeof c === 'string')) {
-      return Array.from(output).map((c) => (typeof c === 'number' ? String.fromCharCode(c) : c)).join('');
-    }
-  }
-  if (output.data && typeof output.data.length === 'number') {
-    // Uint8Array.data
-    return Array.from(output.data)
-      .map((c) => String.fromCharCode(c as number))
-      .join('');
-  }
-  return String(output);
-}
-
-function extractBashOutput(parts: any[] | undefined): string {
-  if (!parts || !Array.isArray(parts)) return '';
-  for (const part of parts) {
-    if (part?.type === 'tool' && part?.tool === 'bash' && part?.state?.output != null) {
-      return normalizeOutput(part.state.output);
-    }
-  }
-  // 兜底: 找任何带 output 的 tool part
-  for (const part of parts) {
-    if (part?.type === 'tool' && part?.state?.output != null) {
-      return normalizeOutput(part.state.output);
-    }
-  }
-  return '';
-}
-
+/**
+ * runShell — 通过 PTY + WebSocket 执行命令 (不创建会话)
+ *
+ * 流程:
+ *   1. pty.create({ command: '/bin/sh', args: ['-c', command], cwd, directory }) → ptyID
+ *   2. WebSocket 直连 ws://{base}/pty/{ptyID}/connect?directory=... → 实时收输出
+ *   3. 命令跑完 (pty get status=exited) → pty.remove 清理
+ */
 async function runShell(command: string): Promise<string> {
-  const client = getFsClient()!; // 从 window.__TAICHU_OPENCODE__ 读 (事件驱动, 不 import)
-  // 1. 创建会话 (v2 SDK: agent 是顶层参数)
-  const { data: sess, error: createErr } = await client.session.create({
-    agent: SHELL_AGENT,
+  const client = getFsClient()!;
+  const runtime = (window as any).__TAICHU_OPENCODE_RUNTIME__;
+  if (!runtime?.baseUrl) throw new Error('runtime not ready');
+  const apiBase = runtime.baseUrl.replace(/\/agent\/?$/, '');
+
+  // 1. 创建 PTY (bash -c 执行命令)
+  const { data: pty, error: createErr } = await client.pty.create({
+    command: '/bin/sh',
+    args: ['-c', command],
+    cwd: '/workspace',
+    directory: '/workspace',
   });
   if (createErr) throw createErr;
-  const sessionID = sess?.id;
-  if (!sessionID) throw new Error('session.create 未返回 sessionID');
+  const ptyID = pty?.id;
+  if (!ptyID) throw new Error('pty.create 未返回 id');
 
-  // 2. 跑命令
-  const { data: shellRes, error: shellErr } = await client.session.shell({
-    sessionID,
-    command,
-    agent: SHELL_AGENT,
+  // 2. WebSocket 收输出
+  const wsUrl = apiBase
+    .replace(/^http/, 'ws')
+    .replace(/\/$/, '') + `/pty/${ptyID}/connect?directory=${encodeURIComponent('/workspace')}`;
+
+  const output = await new Promise<string>((resolve, reject) => {
+    let ws: WebSocket | null = null;
+    let chunks: string[] = [];
+    let settled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    const finish = (code: number) => {
+      if (settled) return;
+      settled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      try { ws?.close(); } catch { /* ignore */ }
+      resolve(chunks.join(''));
+    };
+
+    const fail = (err: any) => {
+      if (settled) return;
+      settled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      try { ws?.close(); } catch { /* ignore */ }
+      reject(err);
+    };
+
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (e) {
+      fail(e);
+      return;
+    }
+
+    ws.onopen = () => {
+      // 开始轮询 pty 状态, 命令结束后关闭 ws
+      pollTimer = setInterval(async () => {
+        try {
+          const g = await client.pty.get({ ptyID, directory: '/workspace' });
+          if (g.data?.status === 'exited') {
+            // 等 500ms 收完剩余输出再关
+            setTimeout(() => finish(0), 800);
+          }
+        } catch { /* pty 可能已销毁 */ }
+      }, 500);
+    };
+    ws.onmessage = (e) => {
+      const data: any = e.data;
+      const push = (t: string) => {
+        // 过滤 PTY 协议控制消息: \u0000 前缀 / {"cursor":...} JSON
+        const trimmed = t.replace(/^\u0000+/, '');
+        if (trimmed.startsWith('{"cursor"') || trimmed.startsWith('{"type":"cursor"')) return;
+        chunks.push(trimmed);
+      };
+      if (typeof data === 'string') {
+        push(data);
+      } else if (data instanceof Blob) {
+        data.text().then(push).catch(() => { /* ignore */ });
+      } else if (data instanceof ArrayBuffer) {
+        push(new TextDecoder().decode(data));
+      }
+    };
+    ws.onerror = () => {
+      // 连接失败不立即失败, 由轮询兜底 (可能命令已跑完)
+      if (!pollTimer) fail(new Error('pty ws connect failed'));
+    };
+    ws.onclose = () => finish(0);
+
+    // 超时兜底 (30s)
+    setTimeout(() => {
+      if (!settled) {
+        try {
+          client.pty.remove({ ptyID, directory: '/workspace' }).catch(() => { /* ignore */ });
+        } catch { /* ignore */ }
+        finish(0);
+      }
+    }, SHELL_TIMEOUT_MS);
   });
-  if (shellErr) throw shellErr;
-  return extractBashOutput(shellRes?.parts);
+
+  // 3. 清理 PTY
+  try {
+    client.pty.remove({ ptyID, directory: '/workspace' }).catch(() => { /* ignore */ });
+  } catch { /* ignore */ }
+
+  return output;
 }
 
 function parseLsLines(output: string): string[] {
@@ -120,8 +170,12 @@ export class FsCommandsContribution implements CommandContribution {
       {
         execute: async (path: string) => {
           assertFsReady();
-          const output = await runShell(`ls -1 '${path}'`);
-          return parseLsLines(output);
+          // list 走 v2.fs API (不创建会话)
+          const client = getFsClient()!;
+          const { data, error } = await (client as any).v2.fs.list({ path });
+          if (error) throw error;
+          const list: any[] = Array.isArray(data) ? data : (data?.data || []);
+          return list.map((e) => String(e.path || e.name || e)).filter(Boolean);
         },
       }
     );
@@ -174,7 +228,11 @@ export function installFsApi(): void {
     isReady: () => !!getFsClient(),
     list: async (path: string) => {
       assertFsReady();
-      return parseLsLines(await runShell(`ls -1 '${path}'`));
+      const client = getFsClient()!;
+      const { data, error } = await (client as any).v2.fs.list({ path });
+      if (error) throw error;
+      const list: any[] = Array.isArray(data) ? data : (data?.data || []);
+      return list.map((e) => String(e.path || e.name || e)).filter(Boolean);
     },
     read: async (path: string) => {
       assertFsReady();
@@ -197,24 +255,41 @@ export function installFsApi(): void {
 
 /**
  * 绑定沙箱读写同步 — 事件驱动: 监听 'taichu:opencode-ready' (SDK 就绪)
- * 后自动跑一次 fs command 自检, 确认沙箱文件系统可读 (列 /workspace),
- * 结果通过事件派发: 'taichu:fs-sync-ok' / 'taichu:fs-error'.
+ * 后自动跑一次 fs command 自检, 确认沙箱文件系统可读 (列 /workspace).
+ * 失败会重试 (1s→2s→4s→8s cap), 不弹错误 overlay.
+ * 结果通过事件派发: 'taichu:fs-sync-ok'.
  */
 export function bindFsSync(): () => void {
+  let cancelled = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let attempt = 0;
+
+  const attemptSync = async () => {
+    try {
+      const files = await (window as any).__TAICHU_FS_API__.list('/workspace');
+      if (cancelled) return;
+      console.info('[fs] sandbox sync OK, /workspace entries:', (files as string[])?.length ?? 0);
+      window.dispatchEvent(new CustomEvent('taichu:fs-sync-ok', { detail: { files } }));
+      attempt = 0;
+    } catch (err) {
+      if (cancelled) return;
+      console.warn('[fs] sandbox sync check failed (attempt ' + (attempt + 1) + '):', err);
+      attempt += 1;
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      timer = setTimeout(attemptSync, delay);
+    }
+  };
+
   const onReady = () => {
-    void (async () => {
-      try {
-        const files = await (window as any).__TAICHU_FS_API__.list('/workspace');
-        console.info('[fs] sandbox sync OK, /workspace entries:', (files as string[])?.length ?? 0);
-        window.dispatchEvent(new CustomEvent('taichu:fs-sync-ok', { detail: { files } }));
-      } catch (err) {
-        console.error('[fs] sandbox sync check failed:', err);
-        window.dispatchEvent(new CustomEvent('taichu:fs-error', { detail: err }));
-      }
-    })();
+    attempt = 0;
+    void attemptSync();
   };
   window.addEventListener('taichu:opencode-ready', onReady);
-  return () => window.removeEventListener('taichu:opencode-ready', onReady);
+  return () => {
+    cancelled = true;
+    if (timer) clearTimeout(timer);
+    window.removeEventListener('taichu:opencode-ready', onReady);
+  };
 }
 
 @Injectable()

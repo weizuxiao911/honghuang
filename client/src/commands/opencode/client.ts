@@ -24,6 +24,25 @@ import { getRuntime, type RuntimeInfo } from './runtime';
 let _client: OpencodeClient | null = null;
 let _baseUrl: string | null = null;
 let _installHandlersAttached = false;
+let warmupInFlight = false;
+
+/**
+ * 探活 OpenCode 服务 — Pod Running 不代表进程内 OpenCode HTTP 已起来,
+ * 这里轮询 config 端点 (GET /config, 轻量) 直到成功, 最多 30s.
+ */
+async function warmupOpenCode(client: OpencodeClient, apiBase: string): Promise<boolean> {
+  const url = apiBase.replace(/\/$/, '') + '/config';
+  for (let i = 0; i < 30; i++) {
+    try {
+      const res = await fetch(url, { method: 'GET' });
+      if (res.ok) return true;
+    } catch {
+      /* network error → retry */
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return false;
+}
 
 /**
  * 懒初始化 OpenCode SDK 客户端 — 第一次调用时基于当前 baseUrl 创建,
@@ -74,8 +93,12 @@ export function disposeOpencodeClient(): void {
 
 /**
  * 安装 OpenCode SDK 监听 — 在 App 启动时调一次:
- *   - taichu:fs-ready  → 创建 SDK 客户端 + 挂 window.__TAICHU_OPENCODE__
+ *   - taichu:fs-ready  → 创建 SDK 客户端 → 探活 OpenCode 服务 → 派发 taichu:opencode-ready
  *   - taichu:fs-teardown → dispose SDK
+ *
+ * 关键: 沙箱 Pod Ready 不代表容器内 OpenCode 进程 HTTP 已监听,
+ * 必须先轮询 GET /config 探活成功后再派发 ready, 否则后续
+ * session.create / agent.list 等会 500.
  */
 export function installOpencodeClient(): () => void {
   if (_installHandlersAttached) {
@@ -83,24 +106,31 @@ export function installOpencodeClient(): () => void {
   }
   _installHandlersAttached = true;
 
-  const onReady = () => {
-    getOpencodeClient();
-    window.dispatchEvent(new CustomEvent('taichu:opencode-ready'));
+  const onReady = async () => {
+    if (warmupInFlight) return;
+    warmupInFlight = true;
+    try {
+      const client = getOpencodeClient();
+      if (!client) return;
+      const apiBase = (_baseUrl || '').replace(/\/agent\/?$/, '');
+      const ok = await warmupOpenCode(client, apiBase);
+      if (!ok) {
+        console.warn('[opencode] warmup timeout after 30s, dispatching ready anyway');
+      }
+      window.dispatchEvent(new CustomEvent('taichu:opencode-ready'));
+    } finally {
+      warmupInFlight = false;
+    }
   };
   const onTeardown = () => {
     disposeOpencodeClient();
   };
 
-  window.addEventListener('taichu:fs-ready', onReady);
+  window.addEventListener('taichu:fs-ready', onReady as EventListener);
   window.addEventListener('taichu:fs-teardown', onTeardown);
 
-  // 首次挂载: 如果 baseUrl 已存在 (page reload 时 fs-ready 派发过), 主动初始化
-  if (getRuntime()?.baseUrl) {
-    getOpencodeClient();
-  }
-
   return () => {
-    window.removeEventListener('taichu:fs-ready', onReady);
+    window.removeEventListener('taichu:fs-ready', onReady as EventListener);
     window.removeEventListener('taichu:fs-teardown', onTeardown);
     _installHandlersAttached = false;
   };

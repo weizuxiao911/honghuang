@@ -78,6 +78,26 @@ function getDeployEnv(): string {
 
 let _runtime: RuntimeInfo | null = null;
 let activated = false;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let retryCount = 0;
+let stopped = false;
+
+const MAX_RETRY_DELAY_MS = 15000;
+
+function computeBackoff(attempt: number): number {
+  // 1s, 2s, 4s, 8s, 15s, 15s, ...
+  const base = Math.min(1000 * Math.pow(2, attempt), MAX_RETRY_DELAY_MS);
+  // 加 ±20% 抖动, 避免雪崩
+  const jitter = base * 0.2 * (Math.random() * 2 - 1);
+  return Math.max(500, Math.round(base + jitter));
+}
+
+function clearRetryTimer(): void {
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+}
 
 async function readSession(): Promise<LoginSession | null> {
   const cfg = (window as any).__TAICHU_DEPLOY_CONFIG__;
@@ -129,7 +149,10 @@ async function fetchRuntime(sess: LoginSession): Promise<RuntimeSnapshot> {
 }
 
 /**
- * 激活沙箱 runtime: 创建/获取 RuntimeSnapshot, 缓存 RuntimeInfo
+ * 激活沙箱 runtime: 创建/获取 RuntimeSnapshot, 缓存 RuntimeInfo.
+ * 失败自动重试 (指数退避, 1s→2s→4s→8s→15s cap), 直到成功或登出.
+ * 不再向前端派发 'taichu:fs-error' (loading 一直转, 直到 ready),
+ * 但保留 console.error 日志.
  */
 export async function activateRuntime(): Promise<RuntimeInfo | null> {
   const sess = await readSession();
@@ -137,9 +160,10 @@ export async function activateRuntime(): Promise<RuntimeInfo | null> {
     console.warn('[opencode] activateRuntime: no login session, skip');
     return null;
   }
+  stopped = false;
   window.dispatchEvent(
     new CustomEvent('taichu:fs-loading', {
-      detail: { phase: 'fetching-runtime' },
+      detail: { phase: 'fetching-runtime', retryCount },
     })
   );
   try {
@@ -154,17 +178,37 @@ export async function activateRuntime(): Promise<RuntimeInfo | null> {
     _runtime = info;
     (window as any).__TAICHU_RUNTIME__ = snap;
     activated = true;
+    retryCount = 0;
+    clearRetryTimer();
     window.dispatchEvent(new CustomEvent('taichu:fs-ready', { detail: info }));
     console.info('[opencode] runtime activated:', info.runtimeId, info.baseUrl);
     return info;
   } catch (err) {
-    console.error('[opencode] activateRuntime failed:', err);
-    window.dispatchEvent(new CustomEvent('taichu:fs-error', { detail: err }));
+    console.error('[opencode] activateRuntime failed:', err, '(attempt ' + (retryCount + 1) + ')');
+    // 不派发 fs-error, 继续重试 loading
+    if (!stopped) {
+      retryCount += 1;
+      const delay = computeBackoff(retryCount - 1);
+      console.info(`[opencode] retry #${retryCount} in ${delay}ms`);
+      window.dispatchEvent(
+        new CustomEvent('taichu:fs-loading', {
+          detail: { phase: 'fetching-runtime', retryCount, nextInMs: delay, error: String((err as Error)?.message || err) },
+        })
+      );
+      clearRetryTimer();
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        void activateRuntime();
+      }, delay);
+    }
     return null;
   }
 }
 
 export function teardownRuntime(): void {
+  stopped = true;
+  clearRetryTimer();
+  retryCount = 0;
   _runtime = null;
   delete (window as any).__TAICHU_RUNTIME__;
   if (activated) {

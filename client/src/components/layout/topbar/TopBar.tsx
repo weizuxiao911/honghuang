@@ -179,7 +179,7 @@ export const TopBar: React.FC = () => {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 700;
           color: #fff;
           line-height: 1;
@@ -194,12 +194,6 @@ export const TopBar: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 4px;
-        }
-        .tc-topbar__divider {
-          width: 1px;
-          height: 20px;
-          background: rgba(255, 255, 255, 0.25);
-          margin: 0 8px;
         }
         /* 3 个 layout toggle 按钮 - 纯 icon, 无外壳 */
         .tc-topbar__btn {
@@ -289,7 +283,6 @@ export const TopBar: React.FC = () => {
         >
           <RightIcon filled={rightVisible} />
         </button>
-        <div className="tc-topbar__divider" />
 
         {/* 登录按钮: 仅未登录时显示, 点击 → loginPage 槽位 (full-screen overlay) */}
         {!session && (
