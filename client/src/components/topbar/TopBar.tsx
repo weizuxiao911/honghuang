@@ -48,21 +48,33 @@ function readLoginSession(): LoginSession | null {
 const LeftIcon = ({ filled }: { filled: boolean }) => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <rect x="3" y="4" width="18" height="16" rx="2" />
-    {filled && <rect x="3" y="4" width="6" height="16" fill="currentColor" stroke="none" />}
+    {filled ? (
+      <rect x="3" y="4" width="6" height="16" fill="currentColor" stroke="none" />
+    ) : (
+      <line x1="9" y1="4" x2="9" y2="20" />
+    )}
   </svg>
 );
 
 const RightIcon = ({ filled }: { filled: boolean }) => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <rect x="3" y="4" width="18" height="16" rx="2" />
-    {filled && <rect x="15" y="4" width="6" height="16" fill="currentColor" stroke="none" />}
+    {filled ? (
+      <rect x="15" y="4" width="6" height="16" fill="currentColor" stroke="none" />
+    ) : (
+      <line x1="15" y1="4" x2="15" y2="20" />
+    )}
   </svg>
 );
 
 const BottomIcon = ({ filled }: { filled: boolean }) => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <rect x="3" y="4" width="18" height="16" rx="2" />
-    {filled && <rect x="3" y="16" width="18" height="4" fill="currentColor" stroke="none" />}
+    {filled ? (
+      <rect x="3" y="16" width="18" height="4" fill="currentColor" stroke="none" />
+    ) : (
+      <line x1="3" y1="16" x2="21" y2="16" />
+    )}
   </svg>
 );
 
