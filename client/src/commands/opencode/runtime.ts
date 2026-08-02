@@ -1,5 +1,5 @@
 /**
- * fs runtime — 登录后自动激活沙箱 runtime
+ * opencode runtime 拉取 — 沙箱 runtime 生命周期管理
  *
  * 流程:
  *   1. 监听 'taichu:login-session-changed' (LoginView 登录成功后派发)
@@ -7,16 +7,38 @@
  *      Header: X-User-Id / X-Tenant-Id / X-Deploy-Env
  *   3. 拿到 RuntimeSnapshot → 缓存 RuntimeInfo + 写 window.__TAICHU_RUNTIME__
  *      baseUrl = snapshot.agentApiBase (e.g. http://<runtimeId>.runtime.taichu.localhost/agent/)
- *   4. 派发 'taichu:fs-ready' 事件, fs sandbox-fs.ts 监听后注册 sandbox scheme provider
+ *   4. 派发 'taichu:fs-ready' 事件, commands/opencode/client.ts 监听到
+ *      创建 OpenCode SDK 客户端 (基于 baseUrl) + 挂 window.__TAICHU_OPENCODE__
  *
  * 登出 ('taichu:login-session-changed' 带 detail=null):
  *   - 清 runtime 缓存
- *   - 派发 'taichu:fs-teardown' (sandbox-fs 卸载 provider)
+ *   - 派发 'taichu:fs-teardown' (dispose SDK)
  *
- * 不依赖任何 React 上下文, 用纯模块级函数, 由 FsModule BrowserModuleContribution onDidStart 触发激活.
+ * 事件流:
+ *   1. taichu:fs-loading (detail: { phase: 'fetching-runtime' }) — 开始 POST /runtime
+ *   2. taichu:fs-ready   (detail: RuntimeInfo)                  — sandbox 就绪
+ *   3. taichu:fs-error   (detail: Error)                        — 失败
+ *   4. taichu:fs-teardown                                          — 登出
  */
 
-import { FSError, setRuntime, type RuntimeInfo } from './api';
+export interface RuntimeInfo {
+  userId: string;
+  tenantId: string;
+  deployEnv: string;
+  runtimeId: string;
+  baseUrl: string;
+}
+
+export class RuntimeError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly body: string,
+    message?: string
+  ) {
+    super(message || `runtime ${status}: ${body?.slice(0, 200)}`);
+    this.name = 'RuntimeError';
+  }
+}
 
 interface LoginSession {
   username?: string;
@@ -54,6 +76,7 @@ function getDeployEnv(): string {
   );
 }
 
+let _runtime: RuntimeInfo | null = null;
 let activated = false;
 
 async function readSession(): Promise<LoginSession | null> {
@@ -100,27 +123,20 @@ async function fetchRuntime(sess: LoginSession): Promise<RuntimeSnapshot> {
       if (getResp.ok) return (await getResp.json()) as RuntimeSnapshot;
     }
     const text = await resp.text().catch(() => '');
-    throw new FSError(resp.status, text, `fetchRuntime ${resp.status}`);
+    throw new RuntimeError(resp.status, text, `fetchRuntime ${resp.status}`);
   }
   return (await resp.json()) as RuntimeSnapshot;
 }
 
 /**
  * 激活沙箱 runtime: 创建/获取 RuntimeSnapshot, 缓存 RuntimeInfo
- *
- * 事件流:
- *   1. taichu:fs-loading (detail: { phase: 'fetching-runtime' }) — 开始 POST /runtime
- *   2. taichu:fs-ready   (detail: RuntimeInfo)                  — sandbox 就绪, provider 激活
- *   3. taichu:fs-error   (detail: Error)                        — 任何阶段失败 (含可重试标记)
- *   4. taichu:fs-teardown                                          — 登出时清状态
  */
 export async function activateRuntime(): Promise<RuntimeInfo | null> {
   const sess = await readSession();
   if (!sess?.userId) {
-    console.warn('[fs] activateRuntime: no login session, skip');
+    console.warn('[opencode] activateRuntime: no login session, skip');
     return null;
   }
-  // 派发 loading — SandboxLoading overlay 显示
   window.dispatchEvent(
     new CustomEvent('taichu:fs-loading', {
       detail: { phase: 'fetching-runtime' },
@@ -135,26 +151,34 @@ export async function activateRuntime(): Promise<RuntimeInfo | null> {
       runtimeId: snap.runtimeId,
       baseUrl: snap.agentApiBase,
     };
-    setRuntime(info);
+    _runtime = info;
     (window as any).__TAICHU_RUNTIME__ = snap;
     activated = true;
     window.dispatchEvent(new CustomEvent('taichu:fs-ready', { detail: info }));
-    console.info('[fs] runtime activated:', info.runtimeId, info.baseUrl);
+    console.info('[opencode] runtime activated:', info.runtimeId, info.baseUrl);
     return info;
   } catch (err) {
-    console.error('[fs] activateRuntime failed:', err);
+    console.error('[opencode] activateRuntime failed:', err);
     window.dispatchEvent(new CustomEvent('taichu:fs-error', { detail: err }));
     return null;
   }
 }
 
 export function teardownRuntime(): void {
-  setRuntime(null);
+  _runtime = null;
   delete (window as any).__TAICHU_RUNTIME__;
   if (activated) {
     activated = false;
     window.dispatchEvent(new CustomEvent('taichu:fs-teardown'));
   }
+}
+
+export function getRuntime(): RuntimeInfo | null {
+  return _runtime;
+}
+
+export function isRuntimeReady(): boolean {
+  return !!_runtime?.baseUrl;
 }
 
 /**

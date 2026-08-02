@@ -6,13 +6,13 @@
  *   - topbar/             top slot 容器 (chrome 容器, 装载 menu-bar 等)
  *   - rightbar/           right slot 容器 (装载业务拓展: AI 助手 / chat / output 等)
  *   - bottombar/          bottom slot 容器 (装载问题/终端/output, 默认 'tc-problems')
- *   - fs/                 fs 槽位框架能力 (runtime 拉取 + sandbox provider + SandboxLoading overlay)
+ *   - fs/SandboxLoading   沙箱启动 loading overlay (纯 UI 状态展示)
  *
  * 注意: 槽位 id 必须用 OpenSumi 标准 id (left / right / bottom),
  * leftBar / rightBar / bottomBar 是框架 @deprecated 别名, 无面板渲染器.
  *
- * slot 装载的 module 各自是独立 BrowserModule 拓展, 按 VS Code 兼容拓展标准或
- * OpenSumi 兼容拓展标准开发, 与 client 框架解耦维护.
+ * 沙箱 runtime 拉取 + OpenCode SDK 封装 + fs commands 在 commands/ 目录 (commands/opencode, commands/fs),
+ * 与 framework 框架能力 (本目录) 职责分开.
  *
  * login / user webview 已在 components/ (webview) 与 commands/ (commands) 目录单独维护.
  */
@@ -33,6 +33,5 @@ export { BottomModule, BottomContribution } from './bottombar/BottomModule';
 export { BottomPlaceholder } from './bottombar/BottomPlaceholder';
 export { ProblemsView } from './bottombar/ProblemsView';
 
-// fs slot — 登录后自动激活 sandbox scheme 文件系统, 对接 gateway runtime
-export { FsModule, FsContribution } from './fs';
+// fs 槽位 — 沙箱启动 loading overlay (纯 UI 状态, 业务在 commands/opencode + commands/fs)
 export { SandboxLoading } from './fs/SandboxLoading';
