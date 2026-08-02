@@ -12,6 +12,8 @@ import { LoginCommandsModule } from './commands/login';
 import { UserModule } from './components/user';
 import { OpencodeCommandsModule, installOpencodeClient, installRuntimeAutoActivate } from './commands/opencode';
 import { FsCommandsModule, installFsApi, bindFsSync } from './commands/fs';
+import { AiModule } from './components/ai';
+import { AiCommandsModule } from './commands/ai';
 import { RightBarModule, BottomModule } from './components/layout';
 import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';
@@ -56,6 +58,8 @@ export const App: React.FC = () => {
           UserModule,
           OpencodeCommandsModule,
           FsCommandsModule,
+          AiModule,
+          AiCommandsModule,
           BottomModule,
           RightBarModule,
         ],

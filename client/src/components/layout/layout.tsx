@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { SlotLocation, SlotRenderer } from '@opensumi/ide-core-browser';
 import { BoxPanel, SplitPanel } from '@opensumi/ide-core-browser/lib/components';
+import { useInjectable } from '@opensumi/ide-core-browser/lib/react-hooks/injectable-hooks';
+import { IMainLayoutService } from '@opensumi/ide-main-layout/lib/common';
 
 import { SandboxLoading } from './fs/SandboxLoading';
 
@@ -27,6 +29,21 @@ import { SandboxLoading } from './fs/SandboxLoading';
  * leftBar/rightBar/bottomBar 是框架 @deprecated 别名, 无面板渲染器.
  */
 export function LayoutComponent(): React.ReactElement {
+  const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
+
+  // 左侧栏固定默认宽度 286 (每次启动强制, 覆盖 OpenSumi 缓存/内置 310)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const tabbar = layoutService.getTabbarService(SlotLocation.left);
+        tabbar.resizeHandle?.setSize(286);
+      } catch {
+        /* ignore */
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [layoutService]);
+
   return (
     <React.Fragment>
       {/* IDE 骨架 (始终显示) */}
@@ -40,7 +57,7 @@ export function LayoutComponent(): React.ReactElement {
           <SlotRenderer
             slot={SlotLocation.left}
             isTabbar
-            defaultSize={280}
+            defaultSize={286}
             minResize={204}
             minSize={49}
           />

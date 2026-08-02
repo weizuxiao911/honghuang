@@ -49,7 +49,7 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
     },
     [SlotLocation.right]: {
       modules: [
-        'rightbar-default'
+        'ai-panel-default'
       ]
     },
     [SlotLocation.main]: {
