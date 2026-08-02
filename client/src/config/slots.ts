@@ -33,9 +33,9 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
     [SlotLocation.statusBar]: { modules: ['@opensumi/ide-status-bar'] },
     [SlotLocation.extra]: { modules: [] },
   } as any,
-  defaultPanels: {
-    left: '@opensumi/ide-explorer',
-    bottom: '',
-    right: '',
-  },
+  // defaultPanels: {
+  //   left: '@opensumi/ide-explorer',
+  //   bottom: '',
+  //   right: '',
+  // },
 };
