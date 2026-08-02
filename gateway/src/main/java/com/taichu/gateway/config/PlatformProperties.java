@@ -95,6 +95,33 @@ public class PlatformProperties {
          * 容器资源配额 (设计文档第三章: 1C1G 宽松).
          */
         private Resources resources = new Resources();
+        /**
+         * TTL 到期自动回收配置 (设计文档第四章流程 6: 过期自动触发 Pod 销毁 + PVC 巡检).
+         * 主链路: Redis keyspace 过期通知 (notify-keyspace-events Ex) 触发实时回收.
+         * 兜底: 定时巡检孤儿 Deployment (Redis 无索引且超过宽限期).
+         */
+        private Reclaim reclaim = new Reclaim();
+    }
+
+    @Data
+    public static class Reclaim {
+        /**
+         * 兜底巡检开关 (默认 true).
+         */
+        private boolean sweepEnabled = true;
+        /**
+         * 兜底巡检间隔 (秒). 默认 300s.
+         */
+        private long sweepIntervalSeconds = 300;
+        /**
+         * 启动后首轮巡检延迟 (秒). 默认 30s, 等应用完全就绪.
+         */
+        private long sweepInitialDelaySeconds = 30;
+        /**
+         * 孤儿宽限期 (秒): Deployment 创建时间超过该值且 Redis 无索引才回收.
+         * 默认与 ttl 一致, 防止创建过程中被误判为孤儿.
+         */
+        private long sweepGraceSeconds = 600;
     }
 
     @Data

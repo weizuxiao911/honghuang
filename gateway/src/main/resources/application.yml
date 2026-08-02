@@ -53,6 +53,12 @@ gateway:
     wait-timeout-seconds: 120
     poll-interval-ms: 2000
     image-pull-policy: IfNotPresent
+    reclaim:
+      # TTL 到期自动回收 (设计文档第四章流程 6)
+      sweep-enabled: true          # 兜底巡检开关
+      sweep-interval-seconds: 300  # 兜底巡检间隔 (秒)
+      sweep-initial-delay-seconds: 30  # 启动后首轮巡检延迟 (秒)
+      sweep-grace-seconds: 600     # 孤儿宽限期 (秒), 默认 = ttl
     resources:
       requests:
         cpu: "100m"

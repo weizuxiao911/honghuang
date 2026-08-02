@@ -69,11 +69,15 @@ spec:
             - name: data
               mountPath: /data
           # AOF 持久化 (设计文档第三章: 自带 TTL 过期机制, 数据持久化到 PVC)
+          # notify-keyspace-events Ex: 开启 keyevent + expired 通知,
+          # 让 gateway 订阅 __keyevent@0__:expired 触发 TTL 到期自动回收 (设计文档第四章流程 6).
           args:
             - --appendonly
             - "yes"
             - --appendfsync
             - "everysec"
+            - --notify-keyspace-events
+            - "Ex"
       volumes:
         - name: data
           persistentVolumeClaim:

@@ -38,6 +38,36 @@
 | **子域名 WebUI** | `{runtimeId}.localhost/**` | 4096 | VS Code Web 界面 |
 | **健康检查** | `localhost/health` | 8080 | K8s 探针 |
 
+## 沙箱生命周期与回收（设计文档第四章流程 6）
+
+**生命周期**：每个用户独占一个沙箱 Pod（Deployment + Service），Redis 双索引 `{prefix}:user:{userId}` / `{prefix}:runtime:{runtimeId}` 带 TTL 存活（默认 `ttl: 600` 秒 = 10 分钟）。
+
+**续约**：有操作才续约，两条路径：
+
+- SSE 平台事件流连接期间每 `sse-renewal-seconds`（默认 120s）自动续约（`SseLeaseRenewer`）；
+- 客户端 `POST /runtime` 命中可复用索引时续约（`RuntimeService#reuseExisting`）。
+
+**回收（双链路，缺一不可）**：
+
+1. **主链路：Redis keyspace 过期通知**。TTL 到期 → Redis PUBLISH `__keyevent@0__:expired` → `RedisExpiryListener` 实时回收。
+   **前提：Redis 必须开启 `--notify-keyspace-events Ex`**（见 `deploy/k8s/redis.yaml`），未开启则主链路静默失效，只剩兜底。
+2. **兜底：孤儿巡检**。`RuntimeSweeper` 每 `sweep-interval-seconds`（默认 300s）对账一次：Fabric8 Informer 缓存（启动一次 list + watch 增量，**对 K8s API server 零轮询**）中创建超过宽限期 `sweep-grace-seconds`（默认 600s）且 Redis 无索引的 Deployment，判定为孤儿并回收。主链路漏回收时兜底兜住。
+
+**回收动作**：删除该 runtime 的 Deployment + Service，并广播 `RECYCLED` SSE 事件；**不删共享 workspace PVC**（subPath 按用户隔离，数据留存，下次秒级重建）。
+
+**配置项**（`gateway.runtime` 下，集群 ConfigMap 与本地 `application.yml` 需同步维护）：
+
+| 配置 | 默认 | 说明 |
+|------|------|------|
+| `ttl` | 600 | 运行时空闲 TTL（秒） |
+| `sse-renewal-seconds` | 120 | SSE 续约间隔，须小于 ttl |
+| `reclaim.sweep-enabled` | true | 兜底巡检开关 |
+| `reclaim.sweep-interval-seconds` | 300 | 兜底巡检间隔 |
+| `reclaim.sweep-initial-delay-seconds` | 30 | 启动后首轮巡检延迟 |
+| `reclaim.sweep-grace-seconds` | 600 | 孤儿宽限期（默认 = ttl） |
+
+**维护要点**：改 Redis 参数或 TTL 相关配置时，集群 ConfigMap `gateway-config` 与 `deploy/k8s/redis.yaml`、本地 `application.yml` 三处必须保持一致；改回收链路需先读设计文档第四章流程 6。
+
 ## 快速启动
 
 ```bash
