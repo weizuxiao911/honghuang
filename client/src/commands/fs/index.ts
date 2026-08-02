@@ -72,7 +72,7 @@ function extractBashOutput(parts: any[] | undefined): string {
 }
 
 async function runShell(command: string): Promise<string> {
-  const client = getFsClient()!;
+  const client = getFsClient()!; // 从 window.__TAICHU_OPENCODE__ 读 (事件驱动, 不 import)
   // 1. 创建会话 (v2 SDK: agent 是顶层参数)
   const { data: sess, error: createErr } = await client.session.create({
     agent: SHELL_AGENT,
@@ -196,8 +196,9 @@ export function installFsApi(): void {
 }
 
 /**
- * 绑定沙箱读写同步 — fs-ready 后自动跑一次 fs command 自检,
- * 确认沙箱文件系统可读 (列 /workspace), 失败派发 taichu:fs-error.
+ * 绑定沙箱读写同步 — 事件驱动: 监听 'taichu:opencode-ready' (SDK 就绪)
+ * 后自动跑一次 fs command 自检, 确认沙箱文件系统可读 (列 /workspace),
+ * 结果通过事件派发: 'taichu:fs-sync-ok' / 'taichu:fs-error'.
  */
 export function bindFsSync(): () => void {
   const onReady = () => {
@@ -212,8 +213,8 @@ export function bindFsSync(): () => void {
       }
     })();
   };
-  window.addEventListener('taichu:fs-ready', onReady);
-  return () => window.removeEventListener('taichu:fs-ready', onReady);
+  window.addEventListener('taichu:opencode-ready', onReady);
+  return () => window.removeEventListener('taichu:opencode-ready', onReady);
 }
 
 @Injectable()
