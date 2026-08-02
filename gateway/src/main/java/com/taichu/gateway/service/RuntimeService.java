@@ -72,12 +72,13 @@ public class RuntimeService {
     private Mono<RuntimeSnapshot> reuseExisting(RuntimeSnapshot existing) {
         long ttl = gatewayProperties.getRuntime().getTtl();
         long threshold = gatewayProperties.getRuntime().effectiveRenewThresholdSeconds();
+        long throttle = gatewayProperties.getRuntime().getRenewThrottleSeconds();
         Instant now = Instant.now();
         existing.setLeaseExpireAt(now.plusSeconds(ttl));
         existing.setUpdatedAt(now);
         log.info("复用 runtime: userId={} runtimeId={} status={}",
                 existing.getUserId(), existing.getRuntimeId(), existing.getStatus());
-        return runtimeRepository.renewIfLow(existing, threshold, ttl)
+        return runtimeRepository.renewIfLow(existing, threshold, ttl, throttle)
                 .then(eventPublisher.publish(RuntimeEventType.INITIAL_STATE, existing,
                         "复用现有 runtime (status=" + existing.getStatus() + ")"))
                 .thenReturn(existing);

@@ -67,24 +67,36 @@ public class RedisConfig {
     private static class RedisRuntimeRepositoryImpl implements RuntimeRepository {
 
         /**
-         * 增量续约脚本 (原子): KEYS[1]=user key, KEYS[2]=runtime key.
-         * 剩余 TTL > 0 且 < 阈值(ms) 时, 双 key 一并续满 ttl(ms); 否则不动.
+         * 增量续约脚本 (原子): KEYS[1]=user key, KEYS[2]=runtime key, KEYS[3]=节流 key.
+         * 节流窗口内 (节流 key 存在) 直接返回 0, 不做判断;
+         * 否则剩余 TTL > 0 且 < 阈值(ms) 时双 key 一并续满 ttl(ms), 返回 1;
+         * 未达阈值仅记录判断时间 (写节流 key), 返回 2.
+         * 节流状态存 Redis (PX 节流窗口后自动消失), 多副本共享同一节流语义.
          * 已过期 (PTTL=-2) 不续, 交给回收链路.
          */
         private static final String RENEW_IF_LOW_LUA =
+                "if redis.call('EXISTS', KEYS[3]) == 1 then " +
+                "  return 0 " +
+                "end " +
                 "local ttl = redis.call('PTTL', KEYS[1]) " +
                 "if ttl > 0 and ttl < tonumber(ARGV[1]) then " +
                 "  redis.call('PEXPIRE', KEYS[1], ARGV[2]) " +
                 "  redis.call('PEXPIRE', KEYS[2], ARGV[2]) " +
+                "  redis.call('SET', KEYS[3], 1, 'PX', ARGV[3]) " +
                 "  return 1 " +
                 "end " +
-                "return 0";
+                "redis.call('SET', KEYS[3], 1, 'PX', ARGV[3]) " +
+                "return 2";
 
         private final ReactiveRedisTemplate<String, RuntimeSnapshot> template;
         private final PlatformProperties properties;
 
         private final DefaultRedisScript<Long> renewIfLowScript =
                 new DefaultRedisScript<>(RENEW_IF_LOW_LUA, Long.class);
+
+        private String throttleKey(String runtimeId) {
+            return properties.getRedis().getKeyPrefix() + ":renew-throttle:" + runtimeId;
+        }
 
         private String userKey(String userId) {
             return properties.getRedis().getKeyPrefix() + ":user:" + userId;
@@ -136,11 +148,12 @@ public class RedisConfig {
         }
 
         @Override
-        public Mono<Boolean> renewIfLow(RuntimeSnapshot snapshot, long thresholdSeconds, long ttlSeconds) {
+        public Mono<Boolean> renewIfLow(RuntimeSnapshot snapshot, long thresholdSeconds, long ttlSeconds, long throttleSeconds) {
             return template.execute(renewIfLowScript,
-                            java.util.List.of(userKey(snapshot.getUserId()), runtimeKey(snapshot.getRuntimeId())),
-                            java.util.List.of(thresholdSeconds * 1000L, ttlSeconds * 1000L))
-                    .map(v -> v != null && v > 0)
+                            java.util.List.of(userKey(snapshot.getUserId()), runtimeKey(snapshot.getRuntimeId()),
+                                    throttleKey(snapshot.getRuntimeId())),
+                            java.util.List.of(thresholdSeconds * 1000L, ttlSeconds * 1000L, throttleSeconds * 1000L))
+                    .map(v -> v != null && v == 1)
                     .next()
                     .defaultIfEmpty(false);
         }

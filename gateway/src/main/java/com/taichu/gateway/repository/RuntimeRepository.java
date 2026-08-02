@@ -45,13 +45,15 @@ public interface RuntimeRepository {
     Mono<Boolean> delete(String runtimeId);
 
     /**
-     * 增量续约: 剩余 TTL 不足 {@code thresholdSeconds} 时续满为 {@code ttlSeconds} (原子, Lua).
+     * 增量续约 (原子, Lua): 节流窗口内跳过; 否则剩余 TTL 不足 {@code thresholdSeconds}
+     * 时续满为 {@code ttlSeconds}. 节流状态存 Redis, 多副本共享.
      * 设计文档第四章流程 6: 续约规则 = 剩余不足阈值自动续满, 未不足则不动.
      *
-     * @param snapshot        快照 (须含 userId 与 runtimeId)
+     * @param snapshot         快照 (须含 userId 与 runtimeId)
      * @param thresholdSeconds 续约阈值 (秒), 剩余低于该值才续约
-     * @param ttlSeconds      续满目标 (秒)
-     * @return 是否执行了续约
+     * @param ttlSeconds       续满目标 (秒)
+     * @param throttleSeconds  节流窗口 (秒), 距上次判断不足该值则跳过
+     * @return 是否执行了续约 (节流跳过 / 未达阈值返回 false)
      */
-    Mono<Boolean> renewIfLow(RuntimeSnapshot snapshot, long thresholdSeconds, long ttlSeconds);
+    Mono<Boolean> renewIfLow(RuntimeSnapshot snapshot, long thresholdSeconds, long ttlSeconds, long throttleSeconds);
 }

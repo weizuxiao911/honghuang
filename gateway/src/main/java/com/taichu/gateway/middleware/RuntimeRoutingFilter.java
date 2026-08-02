@@ -15,8 +15,6 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR;
 
@@ -33,8 +31,8 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
  *  3. 其它路径 (/runtime/*, /health) -> 透传至本地 master API
  *
  * 续约 (设计文档第四章流程 6 "有操作才续约"):
- *  所有走 runtime 的流量 (子域名 + /agent/*) 命中快照后触发租约续期,
- *  按 renew-throttle-seconds 节流 (默认 60s), 防高流量频繁 EXPIRE;
+ *  所有走 runtime 的流量命中快照后触发租约续期, 规则 = 剩余 TTL ≤ 阈值才续满;
+ *  节流状态存 Redis (renewIfLow Lua 内原子处理), 无内存状态, 多副本共享;
  *  续约失败只告警, 不影响请求转发.
  */
 @Slf4j
@@ -44,9 +42,6 @@ public class RuntimeRoutingFilter implements GlobalFilter, Ordered {
 
     private final RuntimeRepository runtimeRepository;
     private final PlatformProperties gatewayProperties;
-
-    /** 节流表: runtimeId -> 上次续约时间戳 (毫秒). */
-    private final Map<String, Long> lastRenewAt = new ConcurrentHashMap<>();
 
     @Override
     public int getOrder() {
@@ -137,25 +132,15 @@ public class RuntimeRoutingFilter implements GlobalFilter, Ordered {
 
     /**
      * 数据平面流量续约 (设计文档第四章流程 6 "有操作才续约").
-     * 规则: 剩余 TTL ≤ min(配置阈值, 3 分钟) 才续满全量 ttl; 续约失败只告警, 不影响转发.
-     * 节流: 距上次判断不足 renew-throttle-seconds 则跳过, 防高流量频繁 PTTL/EXPIRE.
+     * 规则: 剩余 TTL ≤ min(阈值配置, 上限配置) 才续满全量 ttl.
+     * 节流窗口在 Redis 内由 Lua 原子处理 (renewIfLow), 无内存状态.
+     * 续约失败只告警, 不影响请求转发.
      */
     private void renewIfNeeded(RuntimeSnapshot snapshot) {
-        long now = System.currentTimeMillis();
-        long throttleMs = Math.max(1L, gatewayProperties.getRuntime().getRenewThrottleSeconds()) * 1000L;
-        // 惰性清理: 节流表过大时清除已回收 runtime 的旧条目
-        if (lastRenewAt.size() > 1000) {
-            long cutoff = now - Math.max(gatewayProperties.getRuntime().getTtl() * 1000L, 1L);
-            lastRenewAt.entrySet().removeIf(e -> e.getValue() < cutoff);
-        }
-        Long prev = lastRenewAt.get(snapshot.getRuntimeId());
-        if (prev != null && now - prev < throttleMs) {
-            return;
-        }
-        lastRenewAt.put(snapshot.getRuntimeId(), now);
         long ttl = gatewayProperties.getRuntime().getTtl();
         long threshold = gatewayProperties.getRuntime().effectiveRenewThresholdSeconds();
-        runtimeRepository.renewIfLow(snapshot, threshold, ttl)
+        long throttle = gatewayProperties.getRuntime().getRenewThrottleSeconds();
+        runtimeRepository.renewIfLow(snapshot, threshold, ttl, throttle)
                 .doOnNext(ok -> log.debug("数据平面流量续约: runtimeId={} renewed={}", snapshot.getRuntimeId(), ok))
                 .doOnError(err -> log.warn("数据平面流量续约失败(不影响转发): runtimeId={} err={}",
                         snapshot.getRuntimeId(), err.getMessage()))

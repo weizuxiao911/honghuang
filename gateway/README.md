@@ -45,7 +45,7 @@
 **续约**：有操作才续约，两条路径，统一规则 = **剩余 TTL ≤ min(`renew-threshold-seconds`, `renew-threshold-max-seconds`，默认 180s = 3 分钟) 才续满全量 ttl**（Lua 原子判断+续约，活跃期剩余时间维持在 3~10 分钟）：
 
 - 客户端 `POST /runtime` 命中可复用索引时检查续约（`RuntimeService#reuseExisting`）；
-- **数据平面流量续约**：所有走 runtime 的请求（子域名 `{runtimeId}.runtime.taichu.localhost/**` 与 `/agent/*`，含 sandbox 内 SSE 流）命中快照时检查续约（`RuntimeRoutingFilter#renewIfNeeded`），按 `renew-throttle-seconds`（默认 5s）节流防频繁 PTTL/EXPIRE，续约失败不影响转发。
+- **数据平面流量续约**：所有走 runtime 的请求（子域名 `{runtimeId}.runtime.taichu.localhost/**` 与 `/agent/*`，含 sandbox 内 SSE 流）命中快照时检查续约（`RuntimeRoutingFilter#renewIfNeeded`），按 `renew-throttle-seconds`（默认 5s）节流防频繁 PTTL/EXPIRE，续约失败不影响转发。**节流状态存 Redis**（Lua 原子处理，多副本共享，无内存状态）。
 
 > 无独立 SSE 续约子流：数据平面流量续约已覆盖订阅期间的租约保活。
 

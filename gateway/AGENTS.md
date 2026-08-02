@@ -38,6 +38,8 @@
 1. `POST /runtime` 命中可复用索引检查续约（`RuntimeService#reuseExisting`）；
 2. **数据平面流量续约**：所有走 runtime 的请求（子域名 + `/agent/*`，含 sandbox 内 SSE 流）在 `RuntimeRoutingFilter#renewIfNeeded` 检查续约，按 `renew-throttle-seconds`（默认 5s）节流防频繁 PTTL/EXPIRE。
 
+续约/节流状态**一律存 Redis**（`renewIfLow` Lua 原子处理，禁止 gateway 内存表做节流，多副本必须共享）。
+
 **无独立 SSE 续约子流**（`SseLeaseRenewer` 已移除）：数据平面流量续约已覆盖订阅期间租约保活。续约语义变更（阈值、目标 ttl、节流）时两条路径同步改，并核对 README「沙箱生命周期与回收」。
 
 回收走**双链路**，缺一不可：
