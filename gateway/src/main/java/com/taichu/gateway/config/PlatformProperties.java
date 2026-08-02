@@ -88,6 +88,23 @@ public class PlatformProperties {
          */
         private long sseRenewalSeconds = 120;
         /**
+         * 数据平面流量续约节流 (秒). 走 runtime 的请求距上次续约不足该窗口时跳过,
+         * 防止高流量下频繁判断/续约. 默认 60s; 需小于 ttl.
+         */
+        private long renewThrottleSeconds = 60;
+        /**
+         * 续约阈值 (秒): 剩余 TTL 不超过该值才续满. 默认 180s (3 分钟), 硬上限 3 分钟,
+         * 配置超过上限按 180s 处理. 见 {@link #effectiveRenewThresholdSeconds()}.
+         */
+        private long renewThresholdSeconds = 180;
+
+        /**
+         * 生效的续约阈值: min(配置, 3 分钟). 剩余 TTL ≤ 该值 → 自动续满 ttl.
+         */
+        public long effectiveRenewThresholdSeconds() {
+            return Math.min(renewThresholdSeconds, 180);
+        }
+        /**
          * 镜像拉取策略 (Always / IfNotPresent / Never).
          */
         private String imagePullPolicy;

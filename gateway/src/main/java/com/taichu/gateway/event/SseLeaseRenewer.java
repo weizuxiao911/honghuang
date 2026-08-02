@@ -34,7 +34,10 @@ public class SseLeaseRenewer {
 
     private Mono<Void> renewOne(com.taichu.gateway.model.RuntimeSnapshot snapshot) {
         long ttl = config.getRuntime().getTtl();
-        return repository.renew(snapshot.getRuntimeId(), ttl)
-                .then(eventPublisher.publish(RuntimeEventType.RENEWED, snapshot, "租约已续约"));
+        long threshold = config.getRuntime().effectiveRenewThresholdSeconds();
+        return repository.renewIfLow(snapshot, threshold, ttl)
+                .filter(Boolean::booleanValue)
+                .flatMap(renewed -> eventPublisher.publish(RuntimeEventType.RENEWED, snapshot, "租约已续约"))
+                .then();
     }
 }

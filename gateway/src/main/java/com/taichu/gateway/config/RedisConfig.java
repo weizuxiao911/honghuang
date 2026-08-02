@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -64,8 +65,26 @@ public class RedisConfig {
      */
     @RequiredArgsConstructor
     private static class RedisRuntimeRepositoryImpl implements RuntimeRepository {
+
+        /**
+         * 增量续约脚本 (原子): KEYS[1]=user key, KEYS[2]=runtime key.
+         * 剩余 TTL > 0 且 < 阈值(ms) 时, 双 key 一并续满 ttl(ms); 否则不动.
+         * 已过期 (PTTL=-2) 不续, 交给回收链路.
+         */
+        private static final String RENEW_IF_LOW_LUA =
+                "local ttl = redis.call('PTTL', KEYS[1]) " +
+                "if ttl > 0 and ttl < tonumber(ARGV[1]) then " +
+                "  redis.call('PEXPIRE', KEYS[1], ARGV[2]) " +
+                "  redis.call('PEXPIRE', KEYS[2], ARGV[2]) " +
+                "  return 1 " +
+                "end " +
+                "return 0";
+
         private final ReactiveRedisTemplate<String, RuntimeSnapshot> template;
         private final PlatformProperties properties;
+
+        private final DefaultRedisScript<Long> renewIfLowScript =
+                new DefaultRedisScript<>(RENEW_IF_LOW_LUA, Long.class);
 
         private String userKey(String userId) {
             return properties.getRedis().getKeyPrefix() + ":user:" + userId;
@@ -117,20 +136,12 @@ public class RedisConfig {
         }
 
         @Override
-        public Mono<Boolean> renew(String runtimeId, long ttlSeconds) {
-            Duration ttl = Duration.ofSeconds(ttlSeconds);
-            return findByRuntimeId(runtimeId)
-                    .flatMap(opt -> {
-                        if (opt.isEmpty()) {
-                            return Mono.just(false);
-                        }
-                        RuntimeSnapshot snapshot = opt.get();
-                        return Mono.zip(
-                                        template.expire(userKey(snapshot.getUserId()), ttl),
-                                        template.expire(runtimeKey(runtimeId), ttl)
-                                )
-                                .map(t -> true);
-                    })
+        public Mono<Boolean> renewIfLow(RuntimeSnapshot snapshot, long thresholdSeconds, long ttlSeconds) {
+            return template.execute(renewIfLowScript,
+                            java.util.List.of(userKey(snapshot.getUserId()), runtimeKey(snapshot.getRuntimeId())),
+                            java.util.List.of(thresholdSeconds * 1000L, ttlSeconds * 1000L))
+                    .map(v -> v != null && v > 0)
+                    .next()
                     .defaultIfEmpty(false);
         }
     }

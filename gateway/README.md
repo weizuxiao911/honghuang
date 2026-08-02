@@ -42,10 +42,11 @@
 
 **生命周期**：每个用户独占一个沙箱 Pod（Deployment + Service），Redis 双索引 `{prefix}:user:{userId}` / `{prefix}:runtime:{runtimeId}` 带 TTL 存活（默认 `ttl: 600` 秒 = 10 分钟）。
 
-**续约**：有操作才续约，两条路径：
+**续约**：有操作才续约，三条路径，统一规则 = **剩余 TTL ≤ min(`renew-threshold-seconds`, 3 分钟) 才续满全量 ttl**（Lua 原子判断+续约，活跃期剩余时间维持在 3~10 分钟）：
 
-- SSE 平台事件流连接期间每 `sse-renewal-seconds`（默认 120s）自动续约（`SseLeaseRenewer`）；
-- 客户端 `POST /runtime` 命中可复用索引时续约（`RuntimeService#reuseExisting`）。
+- SSE 平台事件流连接期间每 `sse-renewal-seconds`（默认 120s）检查续约（`SseLeaseRenewer`）；
+- 客户端 `POST /runtime` 命中可复用索引时检查续约（`RuntimeService#reuseExisting`）；
+- **数据平面流量续约**：所有走 runtime 的请求（子域名 `{runtimeId}.runtime.taichu.localhost/**` 与 `/agent/*`）命中快照时检查续约（`RuntimeRoutingFilter#renewIfNeeded`），按 `renew-throttle-seconds`（默认 60s）节流防频繁 PTTL/EXPIRE，续约失败不影响转发。
 
 **回收（双链路，缺一不可）**：
 
@@ -61,6 +62,8 @@
 |------|------|------|
 | `ttl` | 600 | 运行时空闲 TTL（秒） |
 | `sse-renewal-seconds` | 120 | SSE 续约间隔，须小于 ttl |
+| `renew-throttle-seconds` | 60 | 数据平面流量续约节流，须小于 ttl |
+| `renew-threshold-seconds` | 180 | 续约阈值：剩余 TTL ≤ 该值（硬上限 3 分钟）才续满 |
 | `reclaim.sweep-enabled` | true | 兜底巡检开关 |
 | `reclaim.sweep-interval-seconds` | 300 | 兜底巡检间隔 |
 | `reclaim.sweep-initial-delay-seconds` | 30 | 启动后首轮巡检延迟 |

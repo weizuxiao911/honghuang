@@ -33,7 +33,15 @@
 
 ## 沙箱生命周期维护规则（设计文档第四章流程 6）
 
-运行时沙箱默认 TTL 存活（`gateway.runtime.ttl`，部署默认 600s = 10 分钟），有操作才续约（SSE 每 `sse-renewal-seconds` 续约 + `POST /runtime` 复用续约）。回收走**双链路**，缺一不可：
+运行时沙箱默认 TTL 存活（`gateway.runtime.ttl`，部署默认 600s = 10 分钟），**有操作才续约**，三条路径统一规则 = **剩余 TTL ≤ min(`renew-threshold-seconds`, 3 分钟) 才续满全量 ttl**（`RuntimeRepository#renewIfLow`，Lua 原子判断+续约，阈值硬上限 3 分钟，见 `PlatformProperties#effectiveRenewThresholdSeconds`）：
+
+1. SSE 每 `sse-renewal-seconds`（默认 120s）检查续约（`SseLeaseRenewer`）；
+2. `POST /runtime` 命中可复用索引检查续约（`RuntimeService#reuseExisting`）；
+3. **数据平面流量续约**：所有走 runtime 的请求（子域名 + `/agent/*`）在 `RuntimeRoutingFilter#renewIfNeeded` 检查续约，按 `renew-throttle-seconds`（默认 60s）节流防频繁 PTTL/EXPIRE。
+
+续约语义变更（阈值、目标 ttl、节流）时三处路径同步改，并核对 README「沙箱生命周期与回收」。
+
+回收走**双链路**，缺一不可：
 
 1. **主链路：Redis keyspace 过期通知**（`RedisExpiryListener` 订阅 `__keyevent@*__:expired`）
    - **前提：Redis 必须开启 `--notify-keyspace-events Ex`**（`deploy/k8s/redis.yaml`）。改 Redis 部署清单时不得移除该参数，否则主链路静默失效、孤儿只能靠兜底回收。

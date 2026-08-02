@@ -45,11 +45,13 @@ public interface RuntimeRepository {
     Mono<Boolean> delete(String runtimeId);
 
     /**
-     * 刷新租约 (续期).
+     * 增量续约: 剩余 TTL 不足 {@code thresholdSeconds} 时续满为 {@code ttlSeconds} (原子, Lua).
+     * 设计文档第四章流程 6: 续约规则 = 剩余不足阈值自动续满, 未不足则不动.
      *
-     * @param runtimeId 运行时 ID
-     * @param ttlSeconds TTL 秒数
-     * @return 是否刷新成功
+     * @param snapshot        快照 (须含 userId 与 runtimeId)
+     * @param thresholdSeconds 续约阈值 (秒), 剩余低于该值才续约
+     * @param ttlSeconds      续满目标 (秒)
+     * @return 是否执行了续约
      */
-    Mono<Boolean> renew(String runtimeId, long ttlSeconds);
+    Mono<Boolean> renewIfLow(RuntimeSnapshot snapshot, long thresholdSeconds, long ttlSeconds);
 }
