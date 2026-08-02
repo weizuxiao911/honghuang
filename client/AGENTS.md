@@ -70,12 +70,13 @@ client/src/
 
 ### login
 
-- **默认实现 + 可被 VSIX 替换**：login 拓展是 client 默认登录交互（GitHub OAuth）；自定义登录页面 VSIX 可替换默认实现，但必须通过 client 暴露的 commands 读写登录状态——login 与登录页面 VSIX 职责分离
+- **login 是一个槽位（slot）**：client 仅提供默认实现示例（GitHub OAuth），自定义 VSIX 通过 VS Code 扩展兼容标准注册自定义 login view 替换默认实现
+- **VS Code 扩展兼容标准**：自定义 login VSIX 通过 `contributes.views` + `contributes.viewsContainers` 注册自定义 view container（`login` 类型由 client 框架按 VS Code 标准暴露）；login slot 检测到自定义 view 时优先使用自定义，未检测到则用默认
 - **登录状态数据模型**：`username`（用户名）/ `userId`（用户唯一标识）/ `avatarUrl`（用户头像 URL）
-- **拓展加载 + 状态传递**：用户访问入口时，client 自动从 registry 加载业务 VSIX 并将登录状态注入；未登录则跳转 `/auth/github/login`（或自定义登录页面 VSIX 提供的入口）
+- **拓展加载 + 状态传递**：用户访问入口时，client 自动从 registry 加载业务 VSIX 并将登录状态注入；未登录则弹出 login slot 视图（默认走 GitHub OAuth，自定义 VSIX 接管则走自定义）
 - OAuth 流程由 `server.ts` 承载；前端仅消费 `userId` / `tenantId` 注入全局（`window.__TAICHU_DEPLOY_CONFIG__`）
 - 拿到 `userId` 后向 gateway 发起 `POST /runtime`，**必须**带 `X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env` 头；返回 `baseUrl` 后通知 fs / ai-panel 拓展消费
-- 不在 login 拓展内做 SDK 实例化、不直连沙箱；职责收敛在"会话建立 + baseUrl 下发 + 登录状态读写 commands"
+- 不在 login 拓展内做 SDK 实例化、不直连沙箱；职责收敛在"会话建立 + baseUrl 下发 + 登录状态读写 commands + 槽位注册默认 view"
 
 ### fs
 

@@ -28,9 +28,10 @@ client 是用户在浏览器侧的 IDE 容器，登录后获取独享沙箱，�
 
 ### 2. 登录
 
-- **未登录时**：弹出登录页（默认 GitHub OAuth），登录后回到主流程
+- **login 是一个槽位（slot）**：client 仅提供默认实现示例（GitHub OAuth），自定义 VSIX 通过 VS Code 扩展兼容标准注册自定义 login view 替换默认实现
+- **未登录时**：用户访问 client 入口，弹出登录页，登录后回到主流程（`?redirect_to_url=` 透传回跳地址，默认首页）
 - **默认实现**：GitHub OAuth 登录（`server.ts` 承载 OAuth 流程）
-- **可被 VSIX 替换**：自定义登录页面 VSIX 可替换默认实现，但必须通过 client 暴露的 commands 读写登录状态——login 与登录页面 VSIX 职责分离
+- **VS Code 扩展兼容标准**：自定义 login VSIX 通过 `contributes.views` + `contributes.viewsContainers` 注册自定义 view container（`login` 类型由 client 框架按 VS Code 标准暴露）；login slot 检测到自定义 view 时优先使用自定义，未检测到则用默认
 - **登录状态数据模型**：
   - `username`：用户名
   - `userId`：用户唯一标识
@@ -83,9 +84,10 @@ client 除了渲染 IDE 骨架之外，承担三个**与后端基础设施直连
 
 ### 1. login — 登录与会话建立
 
+- **login 是一个槽位（slot）**：client 仅提供默认实现示例（GitHub OAuth），自定义 VSIX 通过 VS Code 扩展兼容标准注册自定义 login view 替换默认实现
 - **拓展加载 + 状态传递**：用户访问 client 入口时，client 自动访问 registry 动态加载业务 VSIX 拓展，并将用户登录状态（username / userId / avatarUrl）传递给拓展，完成激活
 - **默认实现**：GitHub OAuth 登录（由 `server.ts` 提供 `/auth/github/login` + `/auth/github/callback` + `/auth/github/logout`）
-- **可被 VSIX 替换**：自定义登录页面 VSIX 可替换默认实现，但必须通过 client 暴露的 commands 读取和写入登录状态——login 拓展与登录页面 VSIX 职责分离
+- **VS Code 扩展兼容标准**：自定义 login VSIX 通过 `contributes.views` + `contributes.viewsContainers` 注册自定义 view container（`login` 类型由 client 框架按 VS Code 标准暴露）；login slot 检测到自定义 view 时优先使用自定义，未检测到则用默认
 - **登录状态数据模型**：
   - `username`：用户名
   - `userId`：用户唯一标识
