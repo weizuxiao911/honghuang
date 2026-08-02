@@ -73,6 +73,8 @@ export function LayoutComponent(): React.ReactElement {
       </BoxPanel>
       {/* login 槽位 (OpenSumi 标准槽位, 默认渲染 LoginView) */}
       <SlotRenderer slot="login" />
+      {/* userPage 槽位 (TopBar 账号按钮触发的浮动弹窗, 默认渲染 UserView) */}
+      <SlotRenderer slot="userPage" />
     </React.Fragment>
   );
 }

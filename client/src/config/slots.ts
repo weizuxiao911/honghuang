@@ -17,7 +17,8 @@ import { LayoutComponent } from '../components/layout/layout';
  *   - SlotLocation.right:     右侧栏 (VS Code Secondary Side Bar / Auxiliary Bar, 装载 AI 助手 / chat)
  *   - SlotLocation.bottom:    底部栏 (VS Code Panel, 装载 problems / terminal / output)
  *   - SlotLocation.main:      中央编辑区 (装载 editor)
- *   - SlotLocation.login:     登录槽位 (client 内置, 装载默认 GitHub OAuth, 可被 VSIX 替换)
+ *   - login:                  登录槽位 (full-screen overlay, client 内置 LoginView, 可被 VSIX 替换)
+ *   - userPage:               用户信息槽位 (TopBar 下方右对齐浮动弹窗, client 内置 UserView 含 logout, 可被 VSIX 替换)
  *
  * 客户端不使用 statusBar slot (无状态栏); 右侧 right slot 渲染器被
  * rightbar/RightPanelRenderer 覆盖 (面板 + 顶部 tab 横条, 无竖 icon 栏).
@@ -67,6 +68,12 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
     login: {
       modules: [
         'login-default'
+      ],
+    },
+    // userPage 槽位 — TopBar 账号按钮触发, 浮动弹窗, 可被 VSIX 替换
+    userPage: {
+      modules: [
+        'user-default'
       ],
     },
   } as any,

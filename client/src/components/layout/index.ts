@@ -34,3 +34,7 @@ export { ProblemsView } from './bottombar/ProblemsView';
 // login slot — full-screen overlay, 可被 VSIX 自定义 view container 替换
 export { LoginView } from './login/LoginView';
 export { LoginModule, LoginContribution, LoginCommandsModule } from './login';
+
+// userPage slot — TopBar 账号按钮触发的浮动弹窗, 可被 VSIX 自定义 view container 替换
+export { UserView } from './user/UserView';
+export { UserModule, UserContribution } from './user';

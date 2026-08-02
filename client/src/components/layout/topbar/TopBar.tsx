@@ -18,9 +18,15 @@ import { IMainLayoutService } from '@opensumi/ide-main-layout/lib/common';
  *   - icon 状态通过订阅 TabbarService.onCurrentChange / onSizeChange 同步,
  *     拖拽折叠面板时也会触发 (onSizeChange)
  *
- * 登录入口:
- *   - 未登录: 纯文字 "登录" 按钮 (紫色文字颜色), 点击 → 'taichu:login-show'
- *   - 已登录: 圆形头像 (用户名首字母), 点击 → 'taichu:login-show' (切换账号)
+ * 登录入口 (拆成两个独立按钮):
+ *   - 登录: 仅未登录时显示, 点击 → 'taichu:login-show' → loginPage 槽位 (full-screen overlay)
+ *   - 账号: 仅已登录时显示, 圆形头像 (用户名首字母), 点击 → 'taichu:user-show' → userPage 槽位 (右上角浮动弹窗)
+ *
+ * userPage 槽位 (与 login 平行):
+ *   - client 默认 view: 简化版用户信息卡片 (头像 + 用户名 + Free 标识 + 升级会员按钮占位
+ *     + 菜单项 + 退出登录按钮)
+ *   - VSIX 替换: contributes.views + viewsContainers 注册 type='userPage' 自定义 view,
+ *     加载 vsix webview 渲染真实用户信息 UI (铁律 12)
  */
 
 interface LoginSession {
@@ -134,6 +140,9 @@ export const TopBar: React.FC = () => {
 
   const showLogin = () => {
     window.dispatchEvent(new CustomEvent('taichu:login-show'));
+  };
+  const showUser = () => {
+    window.dispatchEvent(new CustomEvent('taichu:user-show'));
   };
 
   return (
@@ -277,23 +286,26 @@ export const TopBar: React.FC = () => {
         </button>
         <div className="tc-topbar__divider" />
 
-        {session ? (
-          <button
-            className="tc-topbar__btn"
-            title={`${session.username || session.userId} (点击切换账号)`}
-            onClick={showLogin}
-          >
-            <span className="tc-topbar__avatar">
-              {(session.username || session.userId || 'U').charAt(0).toUpperCase()}
-            </span>
-          </button>
-        ) : (
+        {/* 登录按钮: 仅未登录时显示, 点击 → loginPage 槽位 (full-screen overlay) */}
+        {!session && (
           <button
             className="tc-topbar__btn tc-topbar__login"
             title="登录"
             onClick={showLogin}
           >
             登录
+          </button>
+        )}
+        {/* 账号按钮: 仅已登录时显示, 圆形头像, 点击 → userPage 槽位 (右上角浮动弹窗) */}
+        {session && (
+          <button
+            className="tc-topbar__btn tc-topbar__account-btn"
+            title={`${session.username || session.userId}`}
+            onClick={showUser}
+          >
+            <span className="tc-topbar__avatar">
+              {(session.username || session.userId || 'U').charAt(0).toUpperCase()}
+            </span>
           </button>
         )}
       </div>
