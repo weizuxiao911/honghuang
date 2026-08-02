@@ -6,10 +6,9 @@ import '@codeblitzjs/ide-core/languages';
 
 
 import { slots } from './config/slots';
-import { TopBarModule } from './components/topbar';
+import { TopBarModule } from './components/layout/topbar';
 import { LoginModule, LoginCommandsModule } from './components/login';
-import { AiPanelModule } from './components/ai-panel';
-import { BottomModule } from './components/layout/BottomModule';
+import { RightBarModule, BottomModule } from './components/layout';
 import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';
 import './styles/overrides.css';
@@ -35,8 +34,8 @@ export const App: React.FC = () => {
       appConfig={{
         ...slots,
         defaultPreferences: preferences,
-        // 注入内置拓展 Module: 框架 chrome (TopBar) + login 槽位 + login commands + bottom placeholder + ai-panel
-        modules: [TopBarModule, LoginModule, LoginCommandsModule, BottomModule, AiPanelModule],
+        // 注入内置拓展 Module: topBar chrome + login 槽位 + login commands + bottombar (tc-problems) + rightbar 容器
+        modules: [TopBarModule, LoginModule, LoginCommandsModule, BottomModule, RightBarModule],
       }}
       runtimeConfig={runtimeConfig as any}
     />

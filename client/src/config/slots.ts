@@ -6,22 +6,23 @@ import { LayoutComponent } from '../components/layout/layout';
 /**
  * 槽位与布局配置 — CodeBlitz 容器怎么排版
  *
- * - workspaceDir: IDE 工作区目录名(框架默认)
- * - layoutComponent: 自定义顶层布局(检测登录状态, 未登录时渲染 LoginLayout)
- * - layoutConfig: 8 个常用 slot + login slot 与对应 builtin module;具体业务视图由 VSIX 自己注册
- * - defaultPanels: 启动时各方向默认激活的 panel id
+ * 框架级 layout 槽位 (panel slots, 是 layout 的容器, 装载独立拓展):
  *
- * 说明:
- *   - tc-topbar    由 client/src/components/topbar/ 的 TopBarModule 注册, 在 top slot
- *   - login-default 由 client/src/components/login/ 的 LoginModule 注册, 在 login slot
- *   - login slot 由 client 框架按 VS Code 标准 view container 暴露 (铁律 12),
- *     自定义 VSIX 通过 contributes.views + viewsContainers 注册自定义 view 替换默认
+ *   - SlotLocation.top:        顶部 chrome 区 (装载 menu-bar / tab-bar / settings 等)
+ *   - SlotLocation.leftBar:    左侧栏 (VS Code Primary Side Bar, 装载 explorer / search / source-control)
+ *   - SlotLocation.rightBar:   右侧栏 (VS Code Secondary Side Bar / Auxiliary Bar, 装载 AI 助手 / chat)
+ *   - SlotLocation.bottomBar:  底部栏 (VS Code Panel, 装载 problems / terminal / output)
+ *   - SlotLocation.statusBar:  状态栏 (装载 git / language / encoding)
+ *   - SlotLocation.main:       中央编辑区 (装载 editor)
+ *   - SlotLocation.login:      登录槽位 (client 内置, 装载默认 GitHub OAuth, 可被 VSIX 替换)
+ *
+ * 槽位装载的 module 由 BrowserModule 拓展提供, 按 VS Code 兼容拓展标准或
+ * OpenSumi 兼容拓展标准开发, 与 client 解耦.
  */
 export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layoutComponent' | 'layoutConfig' | 'defaultPanels'> = {
   workspaceDir: '/',
   layoutComponent: LayoutComponent,
   layoutConfig: {
-    // tc-topbar 由 client/src/components/topbar/index.ts 的 TopBarModule 注册
     [SlotLocation.top]: {
       modules: [
         'tc-topbar'
@@ -31,7 +32,7 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
       modules: [
       ]
     },
-    [SlotLocation.left]: {
+    [SlotLocation.leftBar]: {
       modules: [
         '@opensumi/ide-explorer',
         '@opensumi/ide-search',
@@ -39,7 +40,7 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
     },
     [SlotLocation.rightBar]: {
       modules: [
-        'ai-panel-default'
+        'rightbar-default'
       ]
     },
     [SlotLocation.main]: {
@@ -47,9 +48,9 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
         '@opensumi/ide-editor'
       ]
     },
-    [SlotLocation.bottom]: {
+    [SlotLocation.bottomBar]: {
       modules: [
-        'tc-bottom-placeholder'
+        'tc-problems'
       ]
     },
     [SlotLocation.statusBar]: {
@@ -61,21 +62,11 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
       modules: [
       ]
     },
-    [SlotLocation.bottom]: {
-      modules: [
-        'tc-problems'
-      ]
-    },
-    // login slot — client 内置默认实现, 可被 VSIX 替换
+    // login 槽位 — client 内置默认, 可被 VSIX 替换
     login: {
       modules: [
         'login-default'
       ],
     },
   } as any,
-  // defaultPanels: {
-  //   left: '@opensumi/ide-explorer',
-  //   bottom: '',
-  //   right: '',
-  // },
 };

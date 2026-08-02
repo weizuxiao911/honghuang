@@ -5,6 +5,7 @@ import { useInjectable } from '@opensumi/ide-core-browser/lib/react-hooks/inject
 import { IMainLayoutService } from '@opensumi/ide-main-layout/lib/common';
 
 import { LoginLayout } from '../login/LoginLayout';
+import { BottomModule, RightBarModule } from './index';
 
 /**
  * 客户端默认 LayoutComponent — 由 CodeBlitz AppRenderer 渲染
@@ -30,7 +31,7 @@ export function LayoutComponent(): React.ReactElement {
   // 监听 OpenSumi LayoutService 状态变化 (panel 自身折叠/展开 + TopBar toggle 都会触发)
   useEffect(() => {
     const syncLeft = () => {
-      const visible = layoutService.isVisible(SlotLocation.left);
+      const visible = layoutService.isVisible(SlotLocation.leftBar);
       setLeftVisible(visible);
       window.dispatchEvent(
         new CustomEvent('taichu:layout-left-changed', { detail: { visible } })
@@ -49,8 +50,8 @@ export function LayoutComponent(): React.ReactElement {
 
     // 监听 TabbarService.onCurrentChange (currentContainerId 切换触发, panel header 折叠按钮)
     // 也监听 onSizeChange (用户拖拽 panel split 边界, panel 折叠到 0)
-    const leftTabbar = layoutService.getTabbarService(SlotLocation.left);
-    const rightTabbar = layoutService.getTabbarService(SlotLocation.right);
+    const leftTabbar = layoutService.getTabbarService(SlotLocation.leftBar);
+    const rightTabbar = layoutService.getTabbarService(SlotLocation.rightBar);
     const leftDisposable = leftTabbar.onCurrentChange(syncLeft);
     const rightDisposable = rightTabbar.onCurrentChange(syncRight);
     const leftSizeDisposable = leftTabbar.onSizeChange(syncLeft);
@@ -67,7 +68,7 @@ export function LayoutComponent(): React.ReactElement {
   // TopBar toggle 按钮触发: 调 OpenSumi LayoutService.toggleSlot (left/right)
   // bottom 用 local state 控制 (OpenSumi 的 bottom slot 没注册 resizeHandle, 无法响应 panel 显隐)
   useEffect(() => {
-    const leftHandler = () => layoutService.toggleSlot(SlotLocation.left);
+    const leftHandler = () => layoutService.toggleSlot(SlotLocation.leftBar);
     const rightHandler = () => layoutService.toggleSlot(SlotLocation.rightBar);
     const bottomHandler = () => {
       // bottom 用 local state + 调 updatePanelVisibility 触发实际 panel 显隐
@@ -105,7 +106,7 @@ export function LayoutComponent(): React.ReactElement {
           flex={1}
         >
           <SlotRenderer
-            slot={SlotLocation.left}
+            slot={SlotLocation.leftBar}
             isTabbar
             defaultSize={280}
             minResize={204}
