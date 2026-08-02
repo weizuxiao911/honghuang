@@ -1,81 +1,68 @@
-# 交互平面
+# 交互平面（client）
 
-> 本目录对应 `taichu/client/`，即太初**交互平面**（浏览器侧 IDE 容器宿主）。基于 OpenSumi / CodeBlitz 的零业务前端骨架，业务能力全部由 VSIX 承载。
+> 本目录对应 `taichu/client/`，即太初**交互平面**（浏览器侧 IDE 容器宿主）。基于 OpenSumi/CodeBlitz 的容器骨架，按 `@opensumi/ide-core-browser` 标准维护内置拓展；client **不**承载业务 VSIX。
 
-## 定位
+## 这是什么
 
-- **做**：浏览器 IDE 容器（OpenSumi / CodeBlitz 内核）、布局骨架（slot）、窗口生命周期、VSIX 宿主、全局 command 总线、登录与会话建立、与后端基础设施直连的三个核心内置服务（见下）。
-- **不做**：业务 UI、业务命令、业务状态机、Agent 推理、K8s 调度、VSIX 资产存储。
+client 是太初的浏览器侧入口：
+
+- **容器骨架**：OpenSumi/CodeBlitz 内核驱动，`AppRenderer` 装配 slot / preferences / runtime 三类配置
+- **三个内置服务**：login（GitHub OAuth + 会话建立）、fs（沙箱文件系统通道）、ai-panel（AI 侧栏，对接 OpenCode 智能体）
+- **一个拓展一个目录**：所有内置拓展按 `@opensumi/ide-core-browser` 标准开发，落在 `src/components/{name}/`，独立目录、独立 Module / Contribution
+
+client **消费 registry 作为拓展市场**：启动期调用 `registryClient.fetchMetadata()` 拉取 VSIX 元数据清单，按清单从 CDN/OSS 下载 `.vsix` 包并装入 `ExtensionService`（即 `runtimeConfig.extensionMetadata`），由 OpenSumi 运行时激活。**示例功能**：`extensions/yunyan-paper-web/`（常驻入口，详见 [`../registry/README.md`](../registry/)）。
+
+registry 模块的职责（VSIX 元数据存储、版本管控、灰度发布、RBAC 裁剪、CDN/OSS 包分发）详见 [`../registry/README.md`](../registry/)；接口契约详见 [`../架构设计.md §5 接口契约`](../架构设计.md#5-接口契约)。
 
 详细的产品定位、价值主张、用户旅程见 [`../功能设计.md §2 交互平面`](../功能设计.md#2-交互平面)；技术分层、模块边界、接口契约、部署形态见 [`../架构设计.md §2.1 交互平面app`](../架构设计.md#21-交互平面app)。本文件的 AI 协作约束见 [`AGENTS.md`](./AGENTS.md)。
 
-## 浏览器 IDE 体验
+## 单一职责边界
 
-用户打开 client 入口即可得到完整 IDE 容器，无需安装任何扩展：
+| 做 | 不做 |
+|----|------|
+| CodeBlitz 容器骨架（`AppRenderer` 装配） | 业务 VSIX 扩展 |
+| slot / preferences / runtime 三类装配配置 | Agent 推理 / 工具调用 |
+| **login** 内置拓展（OAuth 入口 + 会话建立） | 调度决策 / K8s 编排 |
+| **fs** 内置拓展（沙箱文件系统通道） | A2UI 业务语义解析 |
+| **ai-panel** 内置拓展（OpenCode 智能体对接） | 跨模块直接 import |
+| 与 gateway / agent-image / registry 的接口契约 | 凭据硬编码 |
 
-| 区域 | 用途 |
-|------|------|
-| 顶部标题栏 | 品牌、工作区切换、搜索、版本 / 账户 |
-| 左侧活动栏 + 侧栏 | 资源管理器、搜索、源代码管理、调试器 |
-| 中央编辑区 | 文件 Tab / Welcome / 编辑器主区 |
-| 右侧栏 | Agent 对话窗口（由 `taichu-chat-window` VSIX 注入） |
-| 底部面板 | 输出 / 问题 / 调试控制台 |
-| 状态栏 | Launchpad / 错误计数 / Git 状态 |
+## 三个内置服务
 
-编辑器内核复用 VS Code 生态的成熟组件（Monaco、文件树、Diff、Search、SCM），用户不必切换工具栈。
+client 除了渲染 IDE 骨架之外，承担三个**与后端基础设施直连**的内置服务，封装为三个独立拓展，落在 `src/components/{login,fs,ai-panel}/`。
 
-## 布局与分区：VSIX 与 slot 的关系
+### 1. login — 登录与会话建立
 
-client 容器由 OpenSumi / CodeBlitz 的布局系统划成 8 个常用分区（技术上框架支持 14 个槽位），每个分区是一个独立渲染区域。VSIX 不是直接"挂到槽位"，而是通过 VS Code 标准字段暴露视图容器，再经 OpenSumi 扩展点把视图挂到目标 slot：
+- 用户访问 client 入口后若未登录（`X_USER_ID` 为空），跳转 GitHub OAuth（由 `server.ts` 提供 `/auth/github/login` + `/auth/github/callback` + `/auth/github/logout`）
+- OAuth 回调后 `X_USER_ID`（= GitHub `user.id`）写入 `/etc/taichu/.env`（K8s hostPath 持久化）
+- 登录完成后返回主页，客户端读取 `window.__TAICHU_DEPLOY_CONFIG__`（由 `server.ts` 注入），携带 `X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env` 头向 gateway 发起 `POST /runtime`
+- gateway 命中已有沙箱 → 直接返回 `runtimeId` + `baseUrl`；未命中 → 创建 Pod → 等待 SSE: `READY` → 返回 `baseUrl`
+- `baseUrl = http://{runtimeId}.{RUNTIME_HOST_SUFFIX}`，是后续 fs / ai-panel 的前置条件
 
-- **VS Code 标准字段**（`package.json`）：`contributes.views` / `contributes.viewsContainers` / `contributes.commands` —— 定义视图 id、容器 id、标题、icon、when 等。
-- **OpenSumi 扩展字段**（`package.json`）：`sumiContributes.browserViews.{slot}`（`type: "add"`）—— 把已声明的视图挂到目标 slot。
-- **运行时槽位**（框架私有命名）：`top` / `left` / `main` / `right` / `bottom` / `statusBar` / `action` / `extra` 等。
-- **运行时入口**：VSIX `activate()` 阶段向 `LayoutService` / `CommandService` 注册贡献。
+### 2. fs — 沙箱文件系统通道
 
-> **VSIX 必须按 VS Code 兼容扩展标准开发**：`package.json` 必须声明 `engines.vscode`，业务能力走 `contributes.*` 字段；OpenSumi 扩展点（`sumiContributes.*`、slot 命名）只在需要 OpenSumi 专属能力时作为补充，不替代 VS Code 标准字段。
+- login 拿到 `baseUrl` 后，fs 拓展**自动**与沙箱建立连接
+- 读操作走 HTTP：
+  - `GET /file?path=...` 列目录
+  - `GET /file/content?path=...` 读文件
+- 写操作走 PTY + shell 脚本（agent-image 不暴露 `POST /file` 类 API）：
+  - `mkdir -p` / `touch` 创建目录或文件
+  - `printf %s <base64> | base64 -d > <path>` 写文件
+  - `rm -rf` 删除路径
+- 所有写操作经由 `POST /pty` 派发，会话期间持续在线；沙箱重建时 fs 通道自动重连
+- **统一 fs API 暴露给其它 client 拓展使用**，跨拓展 IO 一律经 fs 客户端，不直接 fetch `${baseUrl}/file...`
 
-## 核心内置服务（与后端基础设施直连，VSIX 不直接接入）
+### 3. ai-panel — AI 侧栏
 
-client 除了渲染 IDE 骨架与装载 VSIX 之外，承担三个**VSIX 不能做、也不必做**的核心内置服务，封装在 `src/services/` 与 `src/config/` 下，对 VSIX 暴露稳定接口。
-
-### 1. 登录与会话建立
-
-- 用户访问 client 入口后触发登录（当前接入 GitHub OAuth）。
-- 登录成功后 client 立即向 gateway 发起 `POST /runtime`，由 gateway 校验身份并返回 `baseUrl`。
-  - gateway 命中已有沙箱 → 直接返回 `runtimeId` + `baseUrl`；
-  - 未命中 → 创建 Pod → 等待 SSE: `READY` → 返回 `baseUrl`。
-- **baseUrl 不是配置项**，而是 `POST /runtime` 响应的运行时产物（`{runtimeId}.{RUNTIME_HOST_SUFFIX}`）。
-- 该步是后续所有功能的前置条件：没有登录就拿不到 `baseUrl`，就没有 fs 通道，也没有 OpenCode SDK。
-
-### 2. fs 文件系统通道
-
-- 拿到 `baseUrl` 后，client **自动**与沙箱内文件系统建立连接（HTTP `GET/POST /file`、`GET /file/content`、`POST /pty`），并把文件操作封装成**统一的 fs API 暴露给 VSIX**（列目录、读、写、建、删）。
-- **VSIX 不直接 `fetch ${baseUrl}/file...`**：所有文件 IO 一律经 client 的 fs 客户端，VSIX 只调用 client 提供的命令或 API。
-- 整段 IDE 使用期间 fs 通道持续在线；会话失效或沙箱重建时 fs 通道自动重连。
-- 实现位于 `src/services/opencode.ts`（`OpencodeFileClient`）。
-
-### 3. OpenCode SDK 与事件流
-
-- client 登录后用 `baseUrl` 实例化 OpenCode SDK 客户端，并把实例挂到稳定的全局（如 `window.__TAICHU_OPENCODE__`）供 VSIX 消费。
-- **VSIX 不直接 `import { createOpencodeClient } from '@opencode-ai/sdk'`**：SDK 的生命周期、连接复用、错误重连由 client 负责。
-- client 同时实现 OpenCode `global/events` SSE 订阅，把事件通过 `window` 上的 event emitter 转发出去。
-- VSIX 用 `window.addEventListener('opencode:event', ...)` 消费事件（`message.updated` / `message.part.updated` / `session.status` / `session.idle` / `session.error` 等），不需要自己接 SSE。
-
-## 业务能力如何注入
-
-业务**不写进 IDE 内核**，而是由 VSIX 注入到目标 slot / 视图容器：
-
-| 槽位 | VSIX | 源码位置 |
-|------|------|----------|
-| 左侧栏（会话管理） | `taichu-session-manager` | [`../extensions/session-manager/`](../extensions/session-manager/) |
-| 右侧栏（对话窗口） | `taichu-chat-window` | [`../extensions/chat-window/`](../extensions/chat-window/) |
-| 中央编辑区空态（着陆页） | `taichu-landing-page` | [`../extensions/landing-page/`](../extensions/landing-page/) |
-| 插件市场（常驻入口） | `taichu-yunyan-paper-web`（暂用） | [`../extensions/yunyan-paper-web/`](../extensions/yunyan-paper-web/) |
-
-用户在「插件市场」装卸 / 升级 VSIX 后，IDE 的对应槽位即时呈现新的视图 —— 这是"业务与基座解耦"的产品侧体现。VSIX 源码统一在 `taichu/extensions/{name}/`，**不在**本目录下；运行时由 client 启动期从 `registry` 拉取并装载。
-
-> **VSIX 生命周期**：源码在 `taichu/extensions/{name}/` → `vsce pack` 打成 `.vsix` → 上架 `registry`（入库 + CDN/OSS）→ client 启动期 `GET /metadata.json` 拉清单并下载 → `ExtensionService` 装载 → `activate()` 阶段向 LayoutService / CommandService 注册贡献。
+- 顶部 TopBar 右侧按钮切换右侧栏（未展开图标 / 展开图标）
+- 面板内是 Agent 拓展，使用 `@opencode-ai/sdk` 对接沙箱内的 OpenCode 智能体
+- 功能：
+  - **新会话**（按钮）：点击新增会话并清空消息列表。若当前会话为空则不重复创建；若当前会话运行中则二次确认
+  - **历史会话**（按钮）：点击弹窗列出历史会话，点击进入对应会话；交互与新会话一致
+  - **消息发送**（输入框）：支持文字 / 图片 / 文件输入 / 粘贴；图片与文件粘贴走"上传"通道——通过 fs 拓展写入沙箱工作区，再以附件形式发送给 AI
+  - **消息列表**（对话消息框）：用户消息在右侧，AI 回复在左侧；支持 SSE 流式渲染
+- 订阅 OpenCode `global/events` SSE（`message.updated` / `message.part.updated` / `session.status` / `session.idle` / `session.error`），通过 `window` event emitter 转发
+- 跨拓展（fs / ai-panel）通过 fs 客户端的"上传"接口协作
 
 ## 目录结构
 
@@ -86,33 +73,42 @@ client/
 ├── package.json              # taichu-client（CodeBlitz 容器构建）
 ├── tsconfig.json
 ├── webpack.config.js
-├── server.ts                 # 本地静态服务入口（express）
+├── server.ts                 # 本地静态托管 + GitHub OAuth + 配置注入（生产环境 K8s 镜像入口）
 ├── Dockerfile                # 镜像构建
 ├── k8s/                      # K8s 清单（Namespace / ConfigMap / Deployment / Service / Ingress）
 │   └── deploy.yaml
-└── src/                      # CodeBlitz 容器入口与配置（**零业务**）
+└── src/                      # CodeBlitz 容器入口与配置
     ├── index.tsx             # ReactDOM 入口
-    ├── App.tsx               # AppRenderer 装配
+    ├── App.tsx               # AppRenderer 装配（注入三类配置 + 内置拓展 Module）
     ├── index.html            # HTML 模板
-    ├── components/           # 框架级组件（如 TopBar、WelcomePage）
-    ├── config/               # 配置外置（appConfig / runtimeConfig / layout / bootstrap）
-    ├── services/             # 三个核心内置服务的实现
-    │   ├── opencode.ts       # fs 文件客户端（VSIX 消费）
-    │   └── registry.ts       # registry 客户端（拉 VSIX 元数据）
+    ├── components/           # 内置拓展（一个拓展一个目录，@opensumi/ide-core-browser 标准）
+    │   ├── topbar/           # 框架 chrome + AI 面板切换按钮
+    │   │   ├── index.ts      # TopBarModule + TopBarContribution
+    │   │   └── TopBar.tsx
+    │   ├── login/            # 登录与会话建立
+    │   ├── fs/               # 沙箱文件系统通道
+    │   └── ai-panel/         # AI 侧栏（OpenCode 智能体对接）
+    ├── config/               # 容器装配配置（三类，按类型维护）
+    │   ├── slots.ts          # layoutConfig（8 个 slot 与 builtin module）
+    │   ├── preferences.ts    # defaultPreferences（主题 / 自动保存 / startup）
+    │   └── runtime.ts        # runtimeConfig（框架级 filesystem）
     └── styles/               # 全局样式覆盖
+        ├── overrides.css
+        └── slots.css
 ```
 
-> **目录约束**：`src/` 严禁出现业务 UI / 业务命令 / 业务状态机；任何"在 client 里加一段业务代码"的请求，默认拒绝并转去 `taichu/extensions/{name}/`。
+> **目录约束**：`src/components/{name}/` 一个拓展一个目录，独立维护 Module / Contribution / 视图组件；任何"在 client 里加一段业务代码"的请求，默认拒绝并下沉到对应内置拓展。
 
 ## 配置外置
 
-client 的所有可调参数都不散落代码里，按作用域分三层：
+client 的所有可调参数都不散落代码里，按作用域分四层：
 
 | 层 | 来源 | 内容 |
 |----|------|------|
 | 构建期 | `package.json` / `webpack.config.js` / `tsconfig.json` | 入口、loader、别名、devServer |
-| 静态 | `src/config/appConfig.json` `src/config/runtimeConfig.json` `src/config/layout.tsx` | `appConfig`（注册入口、启动参数）、`builtInExtensions`、`runtimeConfig.extensionMetadata`、slot 布局 |
+| 静态 | `src/config/*.ts` | `layoutConfig` / `defaultPreferences` / `runtimeConfig` |
 | 运行期 | K8s `ConfigMap: client-config` 注入 ENV | `GATEWAY_URL` / `RUNTIME_HOST_SUFFIX` / `DEPLOY_ENV` |
+| 用户持久化 | `/etc/taichu/.env`（hostPath） | `X_USER_ID`（OAuth 后写入，Pod 重建后仍可复用） |
 
 `baseUrl` 不在配置里，由 `POST /runtime` 响应下发。
 
@@ -120,7 +116,7 @@ client 的所有可调参数都不散落代码里，按作用域分三层：
 
 ### 本地开发
 
-前置：gateway + registry 已起；可选地 agent-image 已起（用于 fs 通道实跑）。
+前置：gateway 已起（用于 OAuth + runtime）；可选地 registry / agent-image 已起。
 
 ```bash
 cd client
@@ -154,25 +150,24 @@ client 是所有跨层调用的中枢，但**只走约定接口**，禁止任何
 
 | 对端 | 接口 | 关键约定 |
 |------|------|----------|
-| registry | `GET /metadata.json`、`GET /vsix/{name}-{version}.vsix` | 启动期一次拉清单 + 按需下包（由 `src/services/registry.ts` 封装） |
-| gateway（控制平面） | `POST /runtime` | 登录后调用，携带 `X-User-Id` / `X-Tenant-Id`；返回 `baseUrl` |
-| gateway（数据平面） | 主域名 + 子域名 `{runtimeId}.{RUNTIME_HOST_SUFFIX}` | `Host` 路由；fs 通道与 OpenCode SDK 数据流都走子域名 |
-| agent-image（fs 通道） | `GET/POST /file`、`GET /file/content`、`POST /pty` | baseUrl = `{runtimeId}.{RUNTIME_HOST_SUFFIX}`；贯穿 IDE 全程 |
-| agent-image（OpenCode） | `global/events` SSE、`window.__TAICHU_OPENCODE__` SDK 实例 | client 封装后通过 `window` event emitter 暴露给 VSIX |
-| VSIX（业务插件） | 全局 command ID（`{publisher}.{name}:{action}`）+ `window.__TAICHU_OPENCODE__` + `window.addEventListener('opencode:event', ...)` + fs API | 唯一合法通道；禁止任何形式的跨包 import |
+| gateway（控制平面） | `POST /runtime` | login 完成后调用；携带 `X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env`；返回 `baseUrl` |
+| gateway（数据平面） | 主域名 + 子域名 `{runtimeId}.{RUNTIME_HOST_SUFFIX}` | `Host` 路由；fs / ai-panel 数据流都走子域名 |
+| agent-image（fs 通道） | `GET /file` / `GET /file/content` / `POST /pty` | `baseUrl = {runtimeId}.{RUNTIME_HOST_SUFFIX}`；读 HTTP / 写 PTY + shell |
+| agent-image（OpenCode） | `global/events` SSE、`@opencode-ai/sdk` 客户端 | 由 ai-panel 拓展封装，订阅 / 转发由 ai-panel 负责 |
+| registry（拓展市场） | `GET /metadata.json` 拉清单 + `GET /vsix/{name}-{version}.vsix` 下载 VSIX 包 | 启动期一次 `registryClient.fetchMetadata()`；按清单从 CDN/OSS 下载后装入 `ExtensionService`（即 `runtimeConfig.extensionMetadata`）；示例功能 `yunyan-paper-web` 通过 registry 加载 |
 
 ## 边界约束
 
-- 纯浏览器运行（`server.ts` 仅用于本地静态托管与健康检查）；**生产无 Node.js 运行时、无后端业务逻辑**。
-- **不直连 K8s**、不解析 A2UI 业务语义、不存储 VSIX 包、不内置业务 UI / 命令 / 状态机。
-- 业务 VSIX 源码**不在** `taichu/client/` 内，统一维护在 `taichu/extensions/{name}/`。
-- 插件与插件、插件与容器之间**仅**通过全局 command ID 联动。
+- 纯浏览器运行（`server.ts` 仅用于 OAuth + 静态托管 + 健康检查）；**生产无 Node.js 业务逻辑**。
+- **不直连 K8s**、不解析 A2UI 业务语义、不存储 VSIX 包、不内置业务 VSIX 源码。
+- **业务 VSIX 的资产加载走 registry**：启动期调用 `registryClient.fetchMetadata()` 拉清单 → 按清单从 CDN/OSS 下载 `.vsix` → 装入 `ExtensionService`。
+- **不内置业务命令 / 业务状态机**；所有跨模块 / 跨拓展联动通过 OpenSumi 全局 command ID 或 `window` 事件总线。
 - 与 agent-image 的所有数据通道**必须**经 gateway（控制平面走 `POST /runtime`，数据平面走 `{runtimeId}.{RUNTIME_HOST_SUFFIX}` 子域名反代），不允许在生产环境直连 agent-image Pod IP。
 - 鉴权 Header（`X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env` / `X-Runtime-Id`）由 gateway 注入并透传，client 不硬编码凭据。
 
 ## UI 设计（待迭代）
 
-当前 UI 设计：左侧 `session-manager`（搜索 + 新对话 + 时间分组列表 + 可折叠），右侧 `chat-window`（消息气泡 + 流式光标 + SSE 实时更新），中央 `landing-page`（marquee 大字标题），顶部为项目级 IDE 标题栏。UI 风格、交互细节、信息密度**待后续迭代**。
+当前 UI：顶部 TopBar（含 AI 面板切换按钮），左侧 explorer + search 侧栏，中央编辑器空态，右侧 ai-panel 侧栏，底部状态栏。UI 风格、交互细节、信息密度**待后续迭代**。
 
 ## 已知问题
 
@@ -180,4 +175,4 @@ client 是所有跨层调用的中枢，但**只走约定接口**，禁止任何
 - 文件 / 目录判定用「扩展名」启发式（生产应改 `stat` 精确判断）。
 - IndexedDB 与 opencode 落盘对账策略未完善。
 - 重命名（删除 + 新建）行为待验证。
-- 本期不实现 VSIX 运行时热替换，registry 元数据变更需重启 client 生效。
+- 写操作走 PTY + shell 脚本，大文件落盘性能待实测。

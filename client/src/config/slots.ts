@@ -18,20 +18,46 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
     // tc-topbar 由 client/src/components/topbar/index.ts 的 TopBarModule 注册,
     // 这里用模块 id 挂到 top slot (与官方 @opensumi/ide-menu-bar 同一机制)
     [SlotLocation.top]: {
-      modules: ['tc-topbar'],
+      modules: [
+        'tc-topbar'
+      ],
     },
-    [SlotLocation.action]: { modules: [] },
+    [SlotLocation.action]: { 
+      modules: [
+
+      ] 
+    },
     [SlotLocation.left]: {
       modules: [
         '@opensumi/ide-explorer',
         '@opensumi/ide-search',
       ],
     },
-    [SlotLocation.right]: { modules: [] },
-    [SlotLocation.main]: { modules: ['@opensumi/ide-editor'] },
-    [SlotLocation.bottom]: { modules: [] },
-    [SlotLocation.statusBar]: { modules: ['@opensumi/ide-status-bar'] },
-    [SlotLocation.extra]: { modules: [] },
+    [SlotLocation.right]: { 
+      modules: [
+
+      ] 
+    },
+    [SlotLocation.main]: { 
+      modules: [
+        '@opensumi/ide-editor'
+      ] 
+    },
+    [SlotLocation.bottom]: { 
+      modules: [
+
+      ] 
+    },
+    [SlotLocation.statusBar]: { 
+      modules: [
+        '@opensumi/ide-status-bar'
+      ] 
+    },
+    [SlotLocation.extra]: { 
+      modules: [
+
+      ] 
+    },
   } as any,
   // defaultPanels: {
   //   left: '@opensumi/ide-explorer',
