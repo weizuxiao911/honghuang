@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-import { readSession, writeSession, getRedirectTo, installLoginApi } from './api';
+import { readSession, writeSession, installLoginApi } from './api';
 
 /**
- * login 槽位默认 view — client 内置默认登录交互 (GitHub OAuth mock)
+ * login 槽位默认 view — client 内置默认登录交互 (用户名/密码 mock)
  *
  * 作为 OpenSumi login slot 的默认注册 view (id='login-default'),
  * LayoutComponent 用 <SlotRenderer slot="login"> 渲染本组件。
@@ -120,12 +120,6 @@ export const LoginView: React.FC = () => {
       userId: trimmedName,
       avatarUrl: '',
     });
-  };
-
-  // GitHub OAuth 登录: 跳 server.ts OAuth 流程
-  const handleGitHubLogin = () => {
-    const redirectTo = getRedirectTo();
-    window.location.href = `/auth/github/login?redirect_to_url=${encodeURIComponent(redirectTo)}`;
   };
 
   return (
@@ -419,56 +413,6 @@ export const LoginView: React.FC = () => {
           box-shadow: none;
         }
 
-        .tc-login-form .tc-divider {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin: 48px 0 32px 0;
-          color: #94a3b8;
-          font-size: 12px;
-          letter-spacing: 0.04em;
-        }
-
-        .tc-login-form .tc-divider::before,
-        .tc-login-form .tc-divider:after {
-          content: '';
-          flex: 1;
-          height: 1px;
-          background: rgba(255, 255, 255, 0.1);
-        }
-
-        .tc-login-github-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          width: 100%;
-          height: 48px;
-          padding: 0 20px;
-          background: #2a2a33;
-          color: #f9fafb;
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          border-radius: 10px;
-          font-size: 15px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background 0.15s, border-color 0.15s;
-        }
-
-        .tc-login-github-btn:hover {
-          background: #303040;
-          border-color: rgba(255, 255, 255, 0.22);
-        }
-
-        .tc-login-github-btn:active {
-          transform: scale(0.98);
-        }
-
-        .tc-login-github-btn svg {
-          width: 20px;
-          height: 20px;
-        }
-
         .tc-login-form .tc-form-error {
           font-size: 13px;
           color: #fecaca;
@@ -562,15 +506,6 @@ export const LoginView: React.FC = () => {
             登录
           </button>
         </form>
-
-        <div className="tc-divider">其他方式登录</div>
-
-        <button onClick={handleGitHubLogin} className="tc-login-github-btn">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
-          </svg>
-          使用 GitHub 登录
-        </button>
 
         <p className="tc-form-footnote">
           登录即同意 <a href="#">用户协议</a> 和 <a href="#">隐私政策</a>

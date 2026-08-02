@@ -17,7 +17,7 @@ import { LoginCommandsContribution } from './commands';
  *   - slots.ts 的 layoutConfig['login'].modules = ['login-default']
  *   - LayoutComponent 用 <SlotRenderer slot="login"> 渲染本槽位 (与 left/right/bottom/top 完全一致)
  *
- * 槽位语义: client 仅提供默认实现 (GitHub OAuth mock, LoginView),
+ * 槽位语义: client 仅提供默认实现 (用户名/密码登录 mock, LoginView),
  * 自定义 VSIX 通过 VS Code 标准 contributes.views + viewsContainers
  * 注册自定义 view container (type='login' 由 client 框架按 VS Code 标准暴露)
  * 替换默认 LoginView, 加载 vsix 自带的 webview 渲染登录 UI (铁律 12).
