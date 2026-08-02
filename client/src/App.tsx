@@ -7,7 +7,7 @@ import '@codeblitzjs/ide-core/languages';
 
 import { slots } from './config/slots';
 import { TopBarModule } from './components/layout/topbar';
-import { LoginModule, LoginCommandsModule } from './components/login';
+import { LoginModule, LoginCommandsModule } from './components/layout/login';
 import { RightBarModule, BottomModule } from './components/layout';
 import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';

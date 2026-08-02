@@ -6,6 +6,7 @@
  *   - topbar/             top slot 容器 (chrome 容器, 装载 menu-bar 等)
  *   - rightbar/           right slot 容器 (装载业务拓展: AI 助手 / chat / output 等)
  *   - bottombar/          bottom slot 容器 (装载问题/终端/output, 默认 'tc-problems')
+ *   - login/              login slot (full-screen overlay, 默认 LoginView GitHub OAuth)
  *
  * 注意: 槽位 id 必须用 OpenSumi 标准 id (left / right / bottom),
  * leftBar / rightBar / bottomBar 是框架 @deprecated 别名, 无面板渲染器.
@@ -29,3 +30,7 @@ export { RightPanelRenderer } from './rightbar/RightPanelRenderer';
 export { BottomModule, BottomContribution } from './bottombar/BottomModule';
 export { BottomPlaceholder } from './bottombar/BottomPlaceholder';
 export { ProblemsView } from './bottombar/ProblemsView';
+
+// login slot — full-screen overlay, 可被 VSIX 自定义 view container 替换
+export { LoginView } from './login/LoginView';
+export { LoginModule, LoginContribution, LoginCommandsModule } from './login';

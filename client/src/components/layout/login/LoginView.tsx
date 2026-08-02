@@ -3,27 +3,32 @@ import React, { useState, useEffect } from 'react';
 import { readSession, writeSession, getRedirectTo, installLoginApi } from './api';
 
 /**
- * login 槽位默认 view — client 内置默认登录交互
+ * login 槽位默认 view — client 内置默认登录交互 (GitHub OAuth mock)
  *
- * 角色:
- *   - 默认登录页 (用户名/密码登录 + GitHub OAuth 入口)
- *   - 提供动态 VSIX 注入替换: 监听 'taichu:login-custom-view' window 事件,
- *     VSIX 派发 { detail: { component } } 后, 包一层 <CustomComponent /> 替换
- *   - 已登录时返回 null (理论上 LayoutComponent 已切换到 IDE 骨架)
+ * 作为 OpenSumi login slot 的默认注册 view (id='login-default'),
+ * LayoutComponent 用 <SlotRenderer slot="login"> 渲染本组件。
  *
- * 自定义 VSIX 替换方式 (VSIX 端):
- *   1. 通过 VS Code 标准 contributes.views + viewsContainers 注册自定义 view
- *      (login type 由 client 框架按 VS Code 标准暴露, 铁律 12)
- *   2. activate 阶段 dispatchEvent('taichu:login-custom-view', { detail: { component } })
- *   3. 或直接调用 window.__TAICHU_LOGIN_API__.setCustomView(component)
+ * 渲染行为:
+ *   - visible=false (default) → 渲染 nothing (本组件不返回 null,
+ *     而是用 visibility:hidden 占位, 避免 SlotRenderer 反复 mount/unmount
+ *     引起的 children 状态丢失)
+ *   - visible=true → 渲染 fixed full-screen overlay, 盖住 IDE 骨架
  *
- * 两种登录方式:
- *   1. 用户名/密码登录: 输入用户名和密码, 点击"登录"按钮, 模拟写入登录状态
- *      (实际生产由接入企业 SSO/OAuth, 此处仅作快速 mock 演示)
- *   2. GitHub OAuth 登录: 点击跳转 /auth/github/login, 走 server.ts OAuth 流程
+ * 显隐控制:
+ *   - 'taichu:login-show'  → visible=true
+ *   - 'taichu:login-hide'  → visible=false
+ *   - 'taichu:login-session-changed' → 已登录 → visible=false
+ *   - 初次 mount 时若已登录 → visible=false
+ *
+ * 自定义 VSIX 替换 (铁律 12):
+ *   - VS Code 标准: contributes.views + contributes.viewsContainers 注册
+ *     view container (type='login', 由 client 框架按 VS Code 标准暴露)
+ *   - 旧路径 (向后兼容): window event 'taichu:login-custom-view' 或
+ *     window.__TAICHU_LOGIN_API__.setCustomView(component) 接管本 view
  */
 
 export const LoginView: React.FC = () => {
+  const [visible, setVisible] = useState<boolean>(false);
   const [customView, setCustomView] = useState<React.ComponentType<any> | null>(null);
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -31,25 +36,43 @@ export const LoginView: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [, setTick] = useState(0);
 
+  // 显隐事件监听 + 自定义 view 事件 + session 事件
   useEffect(() => {
+    const showHandler = () => setVisible(true);
+    const hideHandler = () => setVisible(false);
+    const sessionHandler = () => {
+      setTick((t) => t + 1);
+      // 已登录 → 关闭 overlay
+      if (readSession()) {
+        setVisible(false);
+      }
+    };
     const customHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.component) {
         setCustomView(() => detail.component);
       }
     };
-    const sessionHandler = () => setTick((t) => t + 1);
 
-    window.addEventListener('taichu:login-custom-view', customHandler);
+    window.addEventListener('taichu:login-show', showHandler);
+    window.addEventListener('taichu:login-hide', hideHandler);
     window.addEventListener('taichu:login-session-changed', sessionHandler);
+    window.addEventListener('taichu:login-custom-view', customHandler);
+
+    // 初次 mount: 若已登录, 保持 hidden
+    if (readSession()) {
+      setVisible(false);
+    }
 
     return () => {
-      window.removeEventListener('taichu:login-custom-view', customHandler);
+      window.removeEventListener('taichu:login-show', showHandler);
+      window.removeEventListener('taichu:login-hide', hideHandler);
       window.removeEventListener('taichu:login-session-changed', sessionHandler);
+      window.removeEventListener('taichu:login-custom-view', customHandler);
     };
   }, []);
 
-  // 暴露登录状态读写 API (供 VSIX 直接调用)
+  // 暴露登录状态读写 API (供 VSIX 直接调用) + setCustomView 接管入口
   useEffect(() => {
     installLoginApi();
     (window as any).__TAICHU_LOGIN_API__ = {
@@ -61,15 +84,22 @@ export const LoginView: React.FC = () => {
     };
   }, []);
 
-  // 自定义 VSIX 接管
+  // 自定义 VSIX 接管 → 直接渲染自定义组件 (跳过默认 login UI)
   if (customView) {
     const CustomComponent = customView;
-    return <CustomComponent />;
-  }
-
-  // 已登录 — LoginView 内部不渲染 (LoginLayout 监听 session-changed 关闭 overlay)
-  if (readSession()) {
-    return null;
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          background: '#0a0a0b',
+          display: visible ? 'block' : 'none',
+        }}
+      >
+        <CustomComponent />
+      </div>
+    );
   }
 
   // 用户名/密码登录: 直接 mock 写入登录状态 (生产应接企业 SSO/OAuth)
@@ -99,10 +129,20 @@ export const LoginView: React.FC = () => {
   };
 
   return (
-    <div className="tc-login-root">
+    <div
+      className="tc-login-root"
+      style={{
+        // fixed 全屏 overlay, 盖住 IDE 骨架 (TopBar + 三个 panel + main)
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        // visible=false 时保留在 DOM 中避免 SlotRenderer 反复 mount/unmount
+        // 但用户看不到; layout 状态完全保持 (表单输入不丢)
+        display: visible ? 'flex' : 'none',
+      }}
+    >
       <style>{`
         .tc-login-root {
-          display: flex;
           width: 100vw;
           height: 100vh;
           background: #0a0a0b;
@@ -390,7 +430,7 @@ export const LoginView: React.FC = () => {
         }
 
         .tc-login-form .tc-divider::before,
-        .tc-login-form .tc-divider::after {
+        .tc-login-form .tc-divider:after {
           content: '';
           flex: 1;
           height: 1px;

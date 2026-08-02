@@ -62,7 +62,7 @@ export function writeSession(session: LoginSession): void {
       window.location.href = redirect;
     }, 0);
   }
-  // 默认情况: 已在 IDE 骨架内, 不重定向, 由 LoginLayout 监听 session-changed 自动隐藏
+  // 默认情况: 已在 IDE 骨架内, 不重定向, 由 LoginView 监听 session-changed 自动隐藏
 }
 
 export function clearSession(): void {
