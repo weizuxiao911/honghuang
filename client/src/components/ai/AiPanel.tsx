@@ -59,6 +59,18 @@ export const AiPanel: React.FC = () => {
     load();
   }, []);
 
+  // 监听 taichu:ai-reveal 事件 (TopBar 右栏 toggle 展开时) → 自动 focus 输入框
+  useEffect(() => {
+    const onReveal = () => {
+      setTimeout(() => {
+        const ta = document.querySelector('.tc-ai__input textarea');
+        (ta as HTMLTextAreaElement | null)?.focus();
+      }, 100);
+    };
+    window.addEventListener('taichu:ai-reveal', onReveal);
+    return () => window.removeEventListener('taichu:ai-reveal', onReveal);
+  }, []);
+
   // 会话切换: 加载消息
   useEffect(() => {
     if (!sessionID) {
@@ -68,13 +80,17 @@ export const AiPanel: React.FC = () => {
     const load = async () => {
       try {
         const msgs = await aiListMessages(sessionID);
-        // messages 返回 Message[] (含 info.parts), 转 rows
-        const rs: Row[] = (msgs || []).map((m: any) => ({
-          id: m.id || m.info?.id,
-          role: m.role || m.info?.role,
-          text: extractText(m.parts || m.info?.parts),
-          parts: m.parts || m.info?.parts,
-        }));
+        // messages 返回结构可能是直接 { info, parts } 或 { info: { parts } }, 兼容处理
+        const rs: Row[] = (msgs || []).map((m: any) => {
+          const info = m.info || m;
+          const parts = m.parts || info?.parts;
+          return {
+            id: info?.id || m.id,
+            role: info?.role || m.role,
+            text: extractText(parts),
+            parts,
+          };
+        });
         setRows(rs);
       } catch (e) {
         setError(String((e as any)?.message || e));
@@ -199,7 +215,8 @@ export const AiPanel: React.FC = () => {
     setInput('');
     setError('');
     // 本地先显示用户消息
-    setRows((prev) => [...prev, { id: `local-${Date.now()}`, role: 'user', text }]);
+    const localId = `local-${Date.now()}`;
+    setRows((prev) => [...prev, { id: localId, role: 'user', text }]);
     try {
       let sid = sessionID;
       if (!sid) {
@@ -209,6 +226,9 @@ export const AiPanel: React.FC = () => {
       await aiSendMessage(sid, text, currentAgent);
       setBusy(true);
     } catch (e) {
+      // 失败回滚: 删除本地占位消息 + 恢复输入
+      setRows((prev) => prev.filter((r) => r.id !== localId));
+      setInput(text);
       setError(String((e as any)?.message || e));
     }
   }, [input, busy, sessionID, currentAgent]);
@@ -288,6 +308,8 @@ export const AiPanel: React.FC = () => {
         .tc-ai__send:disabled { opacity:.5; cursor:not-allowed; }
         /* 历史会话列表 */
         .tc-ai__sessions { position:absolute; top:40px; left:10px; right:10px; z-index:100; background:#1c1c22; border:1px solid rgba(255,255,255,0.1); border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,.5); max-height:60%; overflow-y:auto; }
+        .tc-ai__sessions-header { display:flex; align-items:center; justify-content:space-between; padding:8px 14px; border-bottom:1px solid rgba(255,255,255,0.06); font-size:12px; color:var(--descriptionForeground); }
+        .tc-ai__sessions-close { background:transparent; border:none; color:var(--descriptionForeground); cursor:pointer; font-size:16px; padding:0 6px; }
         .tc-ai__sessions-item { padding:10px 14px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.05); font-size:12px; }
         .tc-ai__sessions-item:hover { background:rgba(255,255,255,0.06); }
         .tc-ai__sessions-item.active { background:rgba(99,102,241,.12); }
@@ -303,6 +325,11 @@ export const AiPanel: React.FC = () => {
 
       <div className="tc-ai__header" style={{ position: 'relative' }}>
         <span className="tc-ai__header-title">AI 助手</span>
+        {sessionID && (
+          <span style={{ fontSize: 11, color: 'var(--descriptionForeground)', marginRight: 4 }}>
+            {(sessionID || '').slice(0, 6)}
+          </span>
+        )}
         <button className="tc-ai__btn" onClick={() => { setShowSessions(!showSessions); if (!showSessions) loadSessions(); }}>
           历史会话
         </button>
@@ -310,6 +337,10 @@ export const AiPanel: React.FC = () => {
 
         {showSessions && (
           <div className="tc-ai__sessions">
+            <div className="tc-ai__sessions-header">
+              <span>历史会话</span>
+              <button className="tc-ai__sessions-close" onClick={() => setShowSessions(false)}>×</button>
+            </div>
             {sessions.length === 0 && (
               <div style={{ padding: 14, color: '#8b929b', fontSize: 12 }}>暂无历史会话</div>
             )}
@@ -317,12 +348,21 @@ export const AiPanel: React.FC = () => {
               <div
                 key={s.id}
                 className={`tc-ai__sessions-item ${s.id === sessionID ? 'active' : ''}`}
-                onClick={() => { setSessionID(s.id); setShowSessions(false); }}
+                onClick={() => { setSessionID(s.id); setShowSessions(false); setRows([]); }}
               >
-                {s.title || `会话 ${(s.id || '').slice(0, 8)}`}
-                <div style={{ fontSize: 11, color: '#8b929b', marginTop: 2 }}>
-                  {s.time?.created ? new Date(s.time.created).toLocaleString() : ''}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {s.title || `会话 ${(s.id || '').slice(0, 8)}`}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#8b929b', marginLeft: 8 }}>
+                    {(s.time?.created || s.updated) ? new Date(s.time?.created || s.updated).toLocaleDateString() : ''}
+                  </span>
                 </div>
+                {(s.time?.updated) && (
+                  <div style={{ fontSize: 11, color: '#8b929b', marginTop: 2 }}>
+                    {new Date(s.time.updated).toLocaleString()}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -363,7 +403,25 @@ export const AiPanel: React.FC = () => {
         )}
       </div>
 
-      {error && <div className="tc-ai__err">{error}</div>}
+      {error && (
+        <div className="tc-ai__err">
+          <span>{error}</span>
+          <button className="tc-ai__btn" style={{ marginLeft: 8, padding: '2px 8px', fontSize: 11 }} onClick={async () => {
+            setError('');
+            if (!sessionID) return;
+            try {
+              const msgs = await aiListMessages(sessionID);
+              const rs: Row[] = (msgs || []).map((m: any) => ({
+                id: m.id || m.info?.id,
+                role: m.role || m.info?.role,
+                text: extractText(m.parts || m.info?.parts),
+                parts: m.parts || m.info?.parts,
+              }));
+              setRows(rs);
+            } catch (e) { setError(String((e as any)?.message || e)); }
+          }}>重试</button>
+        </div>
+      )}
 
       {question && (
         <div className="tc-ai__question" style={{ position: 'relative', margin: '0 14px 8px' }}>
@@ -371,12 +429,32 @@ export const AiPanel: React.FC = () => {
           {question.questions.map((q: any, qi: number) => (
             <div key={qi}>
               <div style={{ fontSize: 13, marginBottom: 6 }}>{q.question || q.title}</div>
-              {(q.options || []).map((opt: any, oi: number) => (
-                <label key={oi} className="tc-ai__question-opt">
-                  <input type="radio" name={`q-${qi}`} value={opt.label || opt} />
-                  <span>{opt.label || opt}{opt.description ? ` — ${opt.description}` : ''}</span>
-                </label>
-              ))}
+              {/* 根据 question.multiselect 判断: 多选 / 单选; 默认 radio */}
+              {((q.options || []).length > 0) ? (
+                (q.multiselect || q.multiSelect) ? (
+                  (q.options || []).map((opt: any, oi: number) => (
+                    <label key={oi} className="tc-ai__question-opt">
+                      <input type="checkbox" name={`q-${qi}`} value={opt.label || opt} />
+                      <span>{opt.label || opt}{opt.description ? ` — ${opt.description}` : ''}</span>
+                    </label>
+                  ))
+                ) : (
+                  (q.options || []).map((opt: any, oi: number) => (
+                    <label key={oi} className="tc-ai__question-opt">
+                      <input type="radio" name={`q-${qi}`} value={opt.label || opt} />
+                      <span>{opt.label || opt}{opt.description ? ` — ${opt.description}` : ''}</span>
+                    </label>
+                  ))
+                )
+              ) : (
+                <input
+                  type="text"
+                  placeholder="输入答案"
+                  className="tc-ai__question-input"
+                  name={`q-${qi}`}
+                  style={{ width: '100%', padding: 6, marginTop: 4, background: '#1c1c22', color: 'var(--foreground)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6 }}
+                />
+              )}
             </div>
           ))}
           <div className="tc-ai__question-actions">
@@ -385,10 +463,13 @@ export const AiPanel: React.FC = () => {
               className="tc-ai__btn tc-ai__btn--primary"
               onClick={() => {
                 const answers = question.questions.map((_: any, qi: number) => {
-                  const el = document.querySelector(`input[name="q-${qi}"]:checked`) as HTMLInputElement;
-                  return el?.value || '';
+                  const checked = Array.from(document.querySelectorAll(`input[name="q-${qi}"]:checked`)) as HTMLInputElement[];
+                  if (checked.length > 0) return checked.map(c => c.value);
+                  const text = document.querySelector(`input[type="text"][name="q-${qi}"]`) as HTMLInputElement;
+                  return text?.value ? [text.value] : [];
                 });
-                onReplyQuestion(answers);
+                const flat = ([] as string[]).concat(...answers);
+                onReplyQuestion(flat.length > 0 ? flat : ['reject']);
               }}
             >
               确认

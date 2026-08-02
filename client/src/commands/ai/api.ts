@@ -38,7 +38,10 @@ export async function aiListSessions(): Promise<any[]> {
   const client = getAiClient()!;
   const { data, error } = await client.session.list();
   if (error) throw error;
-  return data || [];
+  // 兼容直接数组 / 嵌套 { data: [...] }
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray((data as any).data)) return (data as any).data;
+  return [];
 }
 
 /** 会话消息列表 */
@@ -47,7 +50,11 @@ export async function aiListMessages(sessionID: string): Promise<any[]> {
   const client = getAiClient()!;
   const { data, error } = await client.session.messages({ sessionID });
   if (error) throw error;
-  return data || [];
+  // 兼容直接数组 / 嵌套 { data: [...] } / { messages: [...] }
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray((data as any).data)) return (data as any).data;
+  if (data && Array.isArray((data as any).messages)) return (data as any).messages;
+  return [];
 }
 
 /** 发送消息 (async_prompt) */
@@ -80,7 +87,10 @@ export async function aiListAgents(): Promise<any[]> {
   const client = getAiClient()!;
   const { data, error } = await (client as any).v2.agent.list();
   if (error) throw error;
-  return data || [];
+  // v2 agent.list 返回 { location, data: AgentV2Info[] }
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray((data as any).data)) return (data as any).data;
+  return [];
 }
 
 /** 切换会话 agent — v2 client */

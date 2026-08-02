@@ -132,7 +132,12 @@ export const TopBar: React.FC = () => {
     layoutService.toggleSlot(SlotLocation.left);
   };
   const toggleRight = () => {
+    const wasVisible = layoutService.isVisible(SlotLocation.right);
     layoutService.toggleSlot(SlotLocation.right);
+    if (!wasVisible) {
+      // 展开 right 时通知 AI panel 被展示 (用于自动 focus textarea 等)
+      window.dispatchEvent(new CustomEvent('taichu:ai-reveal'));
+    }
   };
   const toggleBottom = () => {
     layoutService.toggleSlot(SlotLocation.bottom);
