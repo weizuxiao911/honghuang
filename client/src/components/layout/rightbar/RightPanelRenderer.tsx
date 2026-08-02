@@ -41,6 +41,7 @@ export const RightPanelRenderer: React.FC<{ components: ComponentRegistryInfo[] 
           display: flex;
           flex-direction: column;
           height: 100%;
+          width: 100%;
           background: var(--panel-background, #0e0e12);
           color: var(--foreground, #e5e7eb);
           font-size: 12px;
@@ -83,8 +84,22 @@ export const RightPanelRenderer: React.FC<{ components: ComponentRegistryInfo[] 
           font-size: 14px;
         }
         .tc-right-panel__body {
-          flex: 1;
+          flex: 1 1 0;
           min-height: 0;
+          display: flex;
+          flex-direction: column;
+        }
+        .tc-right-panel__body > * {
+          flex: 1 1 0;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+        }
+        .tc-right-panel__body .kt-tab-panel {
+          flex: 1 1 0;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
         }
       `}</style>
       <TabbarConfig.Provider
