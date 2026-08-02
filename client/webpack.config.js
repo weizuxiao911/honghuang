@@ -2,6 +2,7 @@ const path = require('path');
 const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
+const Dotenv = require('dotenv-webpack');
 
 module.exports = () => ({
   entry: path.resolve(__dirname, 'src/index.tsx'),
@@ -110,12 +111,25 @@ module.exports = () => ({
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, 'src/index.html'),
     }),
+    new Dotenv({
+      path: path.resolve(__dirname, `.env.${process.env.DEPLOY_ENV || 'development'}`),
+      safe: false,
+      systemvars: true,
+      silent: true,
+    }),
     new webpack.DefinePlugin({
+      'process.env.DEPLOY_ENV': JSON.stringify(process.env.DEPLOY_ENV || 'development'),
+      'process.env.GATEWAY_URL': JSON.stringify(
+        process.env.GATEWAY_URL || 'http://gateway.taichu.localhost'
+      ),
+      'process.env.REGISTRY_URL': JSON.stringify(
+        process.env.REGISTRY_URL || 'http://registry.taichu.localhost'
+      ),
+      'process.env.RUNTIME_HOST_SUFFIX': JSON.stringify(
+        process.env.RUNTIME_HOST_SUFFIX || 'runtime.taichu.localhost'
+      ),
       'process.env.OPENCODE_BASE_URL': JSON.stringify(
         process.env.OPENCODE_BASE_URL || 'http://127.0.0.1:24096'
-      ),
-      'process.env.EXTENSION_REGISTRY_URL': JSON.stringify(
-        process.env.EXTENSION_REGISTRY_URL || 'https://localhost:9000'
       ),
     }),
     new NodePolyfillPlugin({ includeAliases: ['process', 'Buffer'] }),

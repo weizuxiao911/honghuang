@@ -16,6 +16,56 @@ registry 模块的职责（VSIX 元数据存储、版本管控、灰度发布、
 
 详细的产品定位、价值主张、用户旅程见 [`../功能设计.md §2 交互平面`](../功能设计.md#2-交互平面)；技术分层、模块边界、接口契约、部署形态见 [`../架构设计.md §2.1 交互平面app`](../架构设计.md#21-交互平面app)。本文件的 AI 协作约束见 [`AGENTS.md`](./AGENTS.md)。
 
+## 功能设计
+
+client 是用户在浏览器侧的 IDE 容器，登录后获取独享沙箱，可与 OpenCode 智能体协作。本节按用户视角描述 client **终态**的完整可视化功能。
+
+### 1. 入口与拓展加载
+
+- 用户访问 client 入口时，自动访问 registry 加载业务 VSIX
+- 加载完成后，VSIX 拓展激活；用户的登录状态（`username` / `userId` / `avatarUrl`）自动传递给拓展
+- 加载失败时，client 仍可访问，拓展缺失不影响 IDE 核心能力
+
+### 2. 登录
+
+- **未登录时**：弹出登录页（默认 GitHub OAuth），登录后回到主流程
+- **默认实现**：GitHub OAuth 登录（`server.ts` 承载 OAuth 流程）
+- **可被 VSIX 替换**：自定义登录页面 VSIX 可替换默认实现，但必须通过 client 暴露的 commands 读写登录状态——login 与登录页面 VSIX 职责分离
+- **登录状态数据模型**：
+  - `username`：用户名
+  - `userId`：用户唯一标识
+  - `avatarUrl`：用户头像 URL
+- 登录完成后，client 携带 `X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env` 头向 gateway 申请沙箱
+
+### 3. 沙箱与文件系统
+
+- 登录后，client 自动访问 gateway 获取沙箱
+- 沙箱就绪后，自动激活 OpenSumi 文件系统对接沙箱
+- 内置 explorer 可直接访问沙箱内的文件 / 目录
+- 业务 VSIX 通过 `taichu.fs.*` commands 读写文件：读 / 列走 HTTP，写 / 创建 / 删走 PTY + shell（agent-image 不暴露 `POST /file` 类 API）
+
+### 4. AI 侧栏
+
+- **顶部 TopBar**：右侧按钮切换 AI 侧栏（未展开 / 展开 两态图标）
+- 接入沙箱后，自动初始化 OpenCode SDK 客户端（`@opencode-ai/sdk`）
+- 面板内提供：
+  - **新会话**：点击新增会话并清空消息列表；空会话不重复创建；运行中二次确认
+  - **历史会话**：弹窗列出历史会话，点击进入对应会话
+  - **消息发送**：文字 / 图片 / 文件输入 / 粘贴；图片与文件粘贴走 fs 拓展的"上传"通道
+  - **消息列表**：用户消息在右侧，AI 回复在左侧；SSE 流式渲染
+  - **附件上传**：图片 / 文件粘贴通过 fs 通道写入沙箱
+  - **切换模型**：支持切换 OpenCode 模型
+  - **A2UI 交互控制**：Agent 生成 `xxx.paper` 等业务资产时，自动触发相关拓展接管渲染
+- SDK 实例封装为 commands 暴露给其他 VSIX：`taichu.ai.session.*` / `taichu.ai.message.*` / `taichu.ai.attachment.upload` / `taichu.ai.model.switch` / `taichu.ai.a2ui.interact`
+- OpenCode SSE 监听 + emitter 转发：业务 VSIX 通过 `window.addEventListener('taichu:opencode-event', ...)` 监听事件
+
+### 5. layout 控制
+
+- 切换显示 / 隐藏 AI 侧栏：`taichu.layout.right.toggle/show/hide`
+- 切换显示 / 隐藏 左侧面板：`taichu.layout.left.toggle/show/hide`
+- 切换显示 / 隐藏 标题栏：`taichu.layout.top.toggle/show/hide`
+- 业务 VSIX 可调用这些 commands 触发 layout 变更
+
 ## 单一职责边界
 
 | 做 | 不做 |
@@ -33,15 +83,22 @@ client 除了渲染 IDE 骨架之外，承担三个**与后端基础设施直连
 
 ### 1. login — 登录与会话建立
 
-- 用户访问 client 入口后若未登录（`X_USER_ID` 为空），跳转 GitHub OAuth（由 `server.ts` 提供 `/auth/github/login` + `/auth/github/callback` + `/auth/github/logout`）
-- OAuth 回调后 `X_USER_ID`（= GitHub `user.id`）写入 `/etc/taichu/.env`（K8s hostPath 持久化）
-- 登录完成后返回主页，客户端读取 `window.__TAICHU_DEPLOY_CONFIG__`（由 `server.ts` 注入），携带 `X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env` 头向 gateway 发起 `POST /runtime`
+- **拓展加载 + 状态传递**：用户访问 client 入口时，client 自动访问 registry 动态加载业务 VSIX 拓展，并将用户登录状态（username / userId / avatarUrl）传递给拓展，完成激活
+- **默认实现**：GitHub OAuth 登录（由 `server.ts` 提供 `/auth/github/login` + `/auth/github/callback` + `/auth/github/logout`）
+- **可被 VSIX 替换**：自定义登录页面 VSIX 可替换默认实现，但必须通过 client 暴露的 commands 读取和写入登录状态——login 拓展与登录页面 VSIX 职责分离
+- **登录状态数据模型**：
+  - `username`：用户名
+  - `userId`：用户唯一标识
+  - `avatarUrl`：用户头像 URL
+- OAuth 回调后登录状态写入 `/etc/taichu/.env`（K8s hostPath 持久化），同时通过 `window` 全局注入到前端
+- 登录完成后，client 携带 `X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env` 头向 gateway 发起 `POST /runtime`
 - gateway 命中已有沙箱 → 直接返回 `runtimeId` + `baseUrl`；未命中 → 创建 Pod → 等待 SSE: `READY` → 返回 `baseUrl`
 - `baseUrl = http://{runtimeId}.{RUNTIME_HOST_SUFFIX}`，是后续 fs / ai-panel 的前置条件
 
 ### 2. fs — 沙箱文件系统通道
 
-- login 拿到 `baseUrl` 后，fs 拓展**自动**与沙箱建立连接
+- login 拿到 `baseUrl` 后，fs 拓展**自动**访问 gateway 获取沙箱环境；环境可用时，自动激活 OpenSumi 文件系统对接沙箱
+- **OpenSumi 文件系统对接**：让 `@opensumi/ide-explorer` 等内置模块能直接访问沙箱内的文件 / 目录（无需 VSIX 自己 fetch）
 - 读操作走 HTTP：
   - `GET /file?path=...` 列目录
   - `GET /file/content?path=...` 读文件
@@ -50,19 +107,36 @@ client 除了渲染 IDE 骨架之外，承担三个**与后端基础设施直连
   - `printf %s <base64> | base64 -d > <path>` 写文件
   - `rm -rf` 删除路径
 - 所有写操作经由 `POST /pty` 派发，会话期间持续在线；沙箱重建时 fs 通道自动重连
-- **统一 fs API 暴露给其它 client 拓展使用**，跨拓展 IO 一律经 fs 客户端，不直接 fetch `${baseUrl}/file...`
+- **统一 fs API + commands 暴露给其它 client 拓展 / 业务 VSIX 使用**：跨拓展 IO 一律经 fs 客户端，不得直接 fetch `${baseUrl}/file...`；commands 命名为 `taichu.fs.{action}`（读 / 写 / 建 / 删 / 上传）
+- **上传接口**（图片 / 文件粘贴）：fs 拓展提供"上传到沙箱工作区"的能力，ai-panel 拓展通过 `taichu.fs.upload` command 调用此接口实现粘贴上传
 
 ### 3. ai-panel — AI 侧栏
 
-- 顶部 TopBar 右侧按钮切换右侧栏（未展开图标 / 展开图标）
-- 面板内是 Agent 拓展，使用 `@opencode-ai/sdk` 对接沙箱内的 OpenCode 智能体
-- 功能：
+- 顶部 TopBar 右侧按钮切换右侧栏（未展开图标 / 展开图标）；通过 layout 控制命令 `taichu.layout.right.toggle`
+- **自动接入沙箱内 OpenCode**：拿到 `baseUrl` 后，自动用 `@opencode-ai/sdk` 实例化客户端，SDK 生命周期由 ai-panel 持有
+- **SDK 实例封装为 commands 暴露给其他 VSIX**：业务 VSIX 通过 commands 调用，不直接 `import { createOpencodeClient } from '@opencode-ai/sdk'`：
+  - `taichu.ai.session.create` — 创建会话
+  - `taichu.ai.session.list` — 历史会话
+  - `taichu.ai.session.switch` — 切换会话
+  - `taichu.ai.message.send` — 发送消息
+  - `taichu.ai.message.stream` — 流式消息
+  - `taichu.ai.attachment.upload` — 附件上传（走 fs 通道写入沙箱）
+  - `taichu.ai.model.switch` — 切换模型
+  - `taichu.ai.a2ui.interact` — A2UI 交互控制
+- **OpenCode SSE 监听 + emitter 转发**：client 内监听 `${baseUrl}/global/events`，通过 `window` event emitter 推送（事件类型：`message.updated` / `message.part.updated` / `session.status` / `session.idle` / `session.error` / A2UI 等）；其他 VSIX 通过 `window.addEventListener('taichu:opencode-event', ...)` 监听
+- **A2UI 交互控制**：当 Agent 生成 `xxx.paper` 等业务资产时，ai-panel 通过 A2UI 事件通知相关拓展接管渲染（示例：`yunyan-paper-web` 收到 A2UI 触发后加载并显示 `xxx.paper` 文件）
+- **ai-panel 内部 UI**：
   - **新会话**（按钮）：点击新增会话并清空消息列表。若当前会话为空则不重复创建；若当前会话运行中则二次确认
   - **历史会话**（按钮）：点击弹窗列出历史会话，点击进入对应会话；交互与新会话一致
-  - **消息发送**（输入框）：支持文字 / 图片 / 文件输入 / 粘贴；图片与文件粘贴走"上传"通道——通过 fs 拓展写入沙箱工作区，再以附件形式发送给 AI
+  - **消息发送**（输入框）：支持文字 / 图片 / 文件输入 / 粘贴；图片与文件粘贴走 fs 拓展的"上传"通道（`taichu.fs.upload`）写入沙箱工作区，再以附件 parts 发送给 AI
   - **消息列表**（对话消息框）：用户消息在右侧，AI 回复在左侧；支持 SSE 流式渲染
-- 订阅 OpenCode `global/events` SSE（`message.updated` / `message.part.updated` / `session.status` / `session.idle` / `session.error`），通过 `window` event emitter 转发
-- 跨拓展（fs / ai-panel）通过 fs 客户端的"上传"接口协作
+
+### 4. layout 控制
+
+- **切换显示 / 隐藏 AI 侧栏**：`taichu.layout.right.toggle/show/hide`，默认由 TopBar 按钮触发
+- **切换显示 / 隐藏 左侧面板**：`taichu.layout.left.toggle/show/hide`
+- **切换显示 / 隐藏 标题栏**：`taichu.layout.top.toggle/show/hide`
+- 业务 VSIX 可调用这些 commands 触发 layout 变更（如：Agent 自动展开 ai-panel 显示实时结果；按需收起左侧面板给编辑器更多空间）
 
 ## 目录结构
 
@@ -101,14 +175,32 @@ client/
 
 ## 配置外置
 
-client 的所有可调参数都不散落代码里，按作用域分四层：
+client 的所有可调参数都不散落代码里，按作用域分**五层**：
 
 | 层 | 来源 | 内容 |
 |----|------|------|
 | 构建期 | `package.json` / `webpack.config.js` / `tsconfig.json` | 入口、loader、别名、devServer |
 | 静态 | `src/config/*.ts` | `layoutConfig` / `defaultPreferences` / `runtimeConfig` |
-| 运行期 | K8s `ConfigMap: client-config` 注入 ENV | `GATEWAY_URL` / `RUNTIME_HOST_SUFFIX` / `DEPLOY_ENV` |
+| 环境配置 | `.env.{DEPLOY_ENV}`（template 见 `.env.example`） | HOST 按环境划分（详见下） |
+| 运行期 | K8s `ConfigMap: client-config` 注入 ENV | `DEPLOY_ENV` / `GATEWAY_URL` / `REGISTRY_URL` / `RUNTIME_HOST_SUFFIX` |
 | 用户持久化 | `/etc/taichu/.env`（hostPath） | `X_USER_ID`（OAuth 后写入，Pod 重建后仍可复用） |
+
+### HOST 按环境划分
+
+dev / staging / prod 三个环境的服务 HOST（仅作示例，实际以 `.env.{DEPLOY_ENV}` 为准）：
+
+| 服务 | dev（`*.taichu.localhost`） | staging（`*.staging.taichu.com`） | prod（`*.taichu.com`） |
+|------|---------------------------|----------------------------------|----------------------|
+| `GATEWAY_URL` | `http://gateway.taichu.localhost` | `https://gateway.staging.taichu.com` | `https://gateway.taichu.com` |
+| `REGISTRY_URL` | `http://registry.taichu.localhost` | `https://registry.staging.taichu.com` | `https://registry.taichu.com` |
+| `RUNTIME_HOST_SUFFIX` | `runtime.taichu.localhost` | `runtime.staging.taichu.com` | `runtime.taichu.com` |
+
+### `.env` 文件维护
+
+- **`.env.example`**：模板，提交到 git，描述所有可配置项
+- **`.env.development`** / **`.env.staging`** / **`.env.production`**：按环境维护，gitignore
+- webpack 通过 `dotenv-webpack` 读 `.env.${DEPLOY_ENV}`；server.ts 通过 `dotenv` 读 `.env.${DEPLOY_ENV}`
+- `DEPLOY_ENV` 决定加载哪个 `.env.*` 文件（webpack 与 server.ts 需一致）
 
 `baseUrl` 不在配置里，由 `POST /runtime` 响应下发。
 
@@ -164,10 +256,6 @@ client 是所有跨层调用的中枢，但**只走约定接口**，禁止任何
 - **不内置业务命令 / 业务状态机**；所有跨模块 / 跨拓展联动通过 OpenSumi 全局 command ID 或 `window` 事件总线。
 - 与 agent-image 的所有数据通道**必须**经 gateway（控制平面走 `POST /runtime`，数据平面走 `{runtimeId}.{RUNTIME_HOST_SUFFIX}` 子域名反代），不允许在生产环境直连 agent-image Pod IP。
 - 鉴权 Header（`X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env` / `X-Runtime-Id`）由 gateway 注入并透传，client 不硬编码凭据。
-
-## UI 设计（待迭代）
-
-当前 UI：顶部 TopBar（含 AI 面板切换按钮），左侧 explorer + search 侧栏，中央编辑器空态，右侧 ai-panel 侧栏，底部状态栏。UI 风格、交互细节、信息密度**待后续迭代**。
 
 ## 已知问题
 

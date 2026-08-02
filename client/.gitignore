@@ -6,6 +6,14 @@ dist/
 out/
 *.vsix
 
+# 环境配置 (仅 .env.example 提交到 git, 其它 gitignore)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+
 # 临时
 .cache/
 *.log

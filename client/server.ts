@@ -8,7 +8,7 @@
  *      GET /auth/github/login     跳转到 GitHub authorize
  *      GET /auth/github/callback  拿 code → 换 access_token → 拿 user.id
  *                                 → 写 X_USER_ID 到 .env → 302 回首页
- *   3. 渲染 index.html 时把 X_USER_ID / GATEWAY_URL 等注入 window.__TAICHU_DEPLOY_CONFIG__
+ *   3. 渲染 index.html 时把 X_USER_ID / GATEWAY_URL / REGISTRY_URL 等注入 window.__TAICHU_DEPLOY_CONFIG__
  *      前端 bootstrap.ts 已设计为读取该全局变量 (见 src/config/bootstrap.ts)
  *
  * .env 文件约定 (hostpath mounted 到 /etc/taichu):
@@ -18,28 +18,35 @@
  *   X_USER_ID             GitHub user.id (OAuth 回调后写入)
  *   X_TENANT_ID           租户标识 (缺省 default)
  *
- * 环境变量覆盖:
- *   PORT          HTTP 监听端口 (default 8080)
- *   DIST_DIR      webpack 产物目录 (default dist)
- *   ENV_FILE      用户持久化文件路径 (default /etc/taichu/.env)
- *   GATEWAY_URL   gateway Ingress host (default http://gateway.taichu.localhost)
+ * 环境变量覆盖 (按 .env.{DEPLOY_ENV} 维护):
+ *   PORT                 HTTP 监听端口 (default 8080)
+ *   DIST_DIR             webpack 产物目录 (default dist)
+ *   ENV_FILE             用户持久化文件路径 (default /etc/taichu/.env)
+ *   DEPLOY_ENV           dev | staging | prod (default dev)
+ *   GATEWAY_URL          gateway Ingress host (default http://gateway.taichu.localhost)
+ *   REGISTRY_URL         registry 拓展市场 host (default http://registry.taichu.localhost)
  *   RUNTIME_HOST_SUFFIX  sandbox 子域后缀 (default runtime.taichu.localhost)
- *   DEPLOY_ENV    dev | staging | prod
  */
 
+import 'dotenv/config';
+import { config as dotenvConfig } from 'dotenv';
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+
+const DEPLOY_ENV = process.env.DEPLOY_ENV || 'dev';
+dotenvConfig({ path: `.env.${DEPLOY_ENV}` });
 
 const PORT = Number(process.env.PORT) || 8080;
 const DIST_DIR = process.env.DIST_DIR || path.resolve('dist');
 const ENV_FILE = process.env.ENV_FILE || '/etc/taichu/.env';
 
 const DEFAULT_CONFIG = {
-  deployEnv: 'dev',
-  gatewayUrl: 'http://gateway.taichu.localhost',
-  runtimeHostSuffix: 'runtime.taichu.localhost',
+  deployEnv: DEPLOY_ENV,
+  gatewayUrl: process.env.GATEWAY_URL || 'http://gateway.taichu.localhost',
+  registryUrl: process.env.REGISTRY_URL || 'http://registry.taichu.localhost',
+  runtimeHostSuffix: process.env.RUNTIME_HOST_SUFFIX || 'runtime.taichu.localhost',
   userId: '',
   tenantId: 'default',
 };
@@ -291,8 +298,9 @@ app.get('*', (req, res, next) => {
   }
   const identity = getIdentity();
   const cfg = {
-    deployEnv: process.env.DEPLOY_ENV || DEFAULT_CONFIG.deployEnv,
+    deployEnv: DEPLOY_ENV,
     gatewayUrl: process.env.GATEWAY_URL || DEFAULT_CONFIG.gatewayUrl,
+    registryUrl: process.env.REGISTRY_URL || DEFAULT_CONFIG.registryUrl,
     runtimeHostSuffix:
       process.env.RUNTIME_HOST_SUFFIX || DEFAULT_CONFIG.runtimeHostSuffix,
     userId: identity.userId,

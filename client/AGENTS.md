@@ -5,6 +5,7 @@
 ## 单一职责
 
 - 本模块只负责**交互平面**：CodeBlitz 容器骨架 + 三个内置拓展（login / fs / ai-panel）+ 业务 VSIX 通过 registry 加载注入。
+- **能力归属**：fs 操作（文件读 / 写 / 上传）、AI 智能（OpenCode SDK 实例 + SSE 事件流）、登录状态（username / userId / avatarUrl）由 client **保留**——由 fs / ai-panel / login 三个内置拓展统一提供；其它业务 VSIX 必须通过 client 暴露的 commands 才能接入这些能力，不得直接 fetch `${baseUrl}/file...` 或 `${baseUrl}/global/events`，不得自己 `import { createOpencodeClient }`。
 - **不**维护业务 VSIX 源码（业务 VSIX 源码统一在 `taichu/extensions/{name}/`，由 registry 上架；client 只通过 registry 客户端拉取并装载）、**不**内置 Agent 推理、**不**直接读写沙箱文件（除非通过 fs 拓展的统一接口）。
 - 任何"在 client 里加一段业务代码 / 业务命令 / 业务状态机"的提问，默认答案：**不能**——下沉到对应内置拓展（`src/components/{name}/`）或新建 `taichu/extensions/{name}/` VSIX 通过 registry 注入。
 
@@ -15,6 +16,7 @@
 - `registryClient`（`registryClient.fetchMetadata()`）用于启动期拉 VSIX 元数据清单，按清单从 CDN/OSS 下载 `.vsix` 包后装入 `ExtensionService`。
 - `@opencode-ai/sdk` 用于 ai-panel 拓展对接沙箱内 OpenCode 智能体。
 - 配置外置：`layoutConfig` / `defaultPreferences` / `runtimeConfig` / `bootstrap`（如需）按类型维护在 `src/config/`，独立 `.ts` 文件，不散落代码里。
+- **环境配置**：HOST 按环境划分维护，落在 `.env.{DEPLOY_ENV}`（dev / staging / production）；webpack 通过 `dotenv-webpack` 读 `.env.${DEPLOY_ENV}`，server.ts 通过 `dotenv` 读 `.env.${DEPLOY_ENV}`。`.env.example` 是模板（提交到 git）；`.env.development` / `.env.staging` / `.env.production` gitignore。
 
 ## 目录结构与拓展开发规范
 
@@ -68,30 +70,39 @@ client/src/
 
 ### login
 
-- 用户访问入口时检查 `X_USER_ID`（`window.__TAICHU_DEPLOY_CONFIG__.userId`），未登录则跳转 `/auth/github/login`
-- OAuth 流程由 `server.ts` 承载；前端仅消费 `userId` / `tenantId` 注入全局
+- **默认实现 + 可被 VSIX 替换**：login 拓展是 client 默认登录交互（GitHub OAuth）；自定义登录页面 VSIX 可替换默认实现，但必须通过 client 暴露的 commands 读写登录状态——login 与登录页面 VSIX 职责分离
+- **登录状态数据模型**：`username`（用户名）/ `userId`（用户唯一标识）/ `avatarUrl`（用户头像 URL）
+- **拓展加载 + 状态传递**：用户访问入口时，client 自动从 registry 加载业务 VSIX 并将登录状态注入；未登录则跳转 `/auth/github/login`（或自定义登录页面 VSIX 提供的入口）
+- OAuth 流程由 `server.ts` 承载；前端仅消费 `userId` / `tenantId` 注入全局（`window.__TAICHU_DEPLOY_CONFIG__`）
 - 拿到 `userId` 后向 gateway 发起 `POST /runtime`，**必须**带 `X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env` 头；返回 `baseUrl` 后通知 fs / ai-panel 拓展消费
-- 不在 login 拓展内做 SDK 实例化、不直连沙箱；职责收敛在"会话建立 + baseUrl 下发"
+- 不在 login 拓展内做 SDK 实例化、不直连沙箱；职责收敛在"会话建立 + baseUrl 下发 + 登录状态读写 commands"
 
 ### fs
 
-- 统一 fs API 暴露给其它 client 拓展使用（读 / 列 / 写 / 创建 / 删除），跨拓展 IO 一律经 fs 客户端
+- **自动激活 OpenSumi 文件系统对接沙箱**：login 拿到 `baseUrl` 后，fs 拓展自动访问 gateway 获取沙箱环境；环境可用时激活 OpenSumi 文件系统，让 `@opensumi/ide-explorer` 等内置模块能直接访问沙箱内的文件 / 目录
+- **统一 fs API + commands 暴露给其它 client 拓展 / 业务 VSIX**：跨拓展 IO 一律经 fs 客户端，commands 命名为 `taichu.fs.{action}`（读 / 写 / 建 / 删 / 上传）；不得直接 fetch `${baseUrl}/file...`
 - 读：HTTP `GET /file?path=...` / `GET /file/content?path=...`
 - 写 / 创建 / 删除：`POST /pty` 派发 shell 脚本（`mkdir -p` / `touch` / `printf | base64` / `rm -rf`）；agent-image **不**暴露 `POST /file` 类 API，**不要**尝试加此假设
 - 不在 fs 拓展内做 OpenCode SDK 对接、不解析 A2UI、不持久化用户业务数据
-- 上传接口（图片 / 文件粘贴）：fs 拓展提供"上传到沙箱工作区"的能力，ai-panel 拓展调用此接口实现粘贴上传
+- 上传接口（图片 / 文件粘贴）：fs 拓展提供"上传到沙箱工作区"的能力，ai-panel 拓展通过 `taichu.fs.upload` command 调用此接口实现粘贴上传
 
 ### ai-panel
 
-- 顶部 TopBar 右侧按钮切换右侧栏（未展开 / 展开 两态图标）
-- 使用 `@opencode-ai/sdk` 对接沙箱内 OpenCode 智能体；客户端实例由 ai-panel 自行创建，SDK 生命周期收敛在本拓展
-- 订阅 OpenCode `global/events` SSE，通过 `window` event emitter 转发；不绕过 SDK 直接 fetch `${baseUrl}/global/events`
-- 功能边界（必须严格遵守）：
+- **自动接入沙箱内 OpenCode**：拿到 `baseUrl` 后，自动用 `@opencode-ai/sdk` 实例化客户端，SDK 生命周期由 ai-panel 持有
+- **SDK 实例封装为 commands 暴露给其他 VSIX**：业务 VSIX 通过 commands 调用（不直接 `import { createOpencodeClient }`）：
+  - `taichu.ai.session.create` / `taichu.ai.session.list` / `taichu.ai.session.switch`
+  - `taichu.ai.message.send` / `taichu.ai.message.stream`
+  - `taichu.ai.attachment.upload`（走 fs 通道写入沙箱）
+  - `taichu.ai.model.switch`
+  - `taichu.ai.a2ui.interact`（A2UI 交互控制）
+- **OpenCode SSE 监听 + emitter 转发**：client 内监听 `${baseUrl}/global/events`，通过 `window` event emitter 推送（事件类型：`message.updated` / `message.part.updated` / `session.status` / `session.idle` / `session.error` / A2UI 等）；其他 VSIX 通过 `window.addEventListener('taichu:opencode-event', ...)` 监听；不绕过 SDK 直接 fetch `${baseUrl}/global/events`
+- **A2UI 交互控制**：当 Agent 生成 `xxx.paper` 等业务资产时，ai-panel 通过 A2UI 事件通知相关拓展接管渲染（示例：`yunyan-paper-web` 收到 A2UI 触发后加载并显示 `xxx.paper` 文件）
+- **功能边界**（必须严格遵守）：
   - **新会话**：当前会话为空不重复创建；当前会话运行中**必须**二次确认后才新建
   - **历史会话**：弹窗列出历史会话，点击切换；交互与新会话一致（空会话不重复创建 / 运行中二次确认）
-  - **消息发送**：文字 / 图片 / 文件输入 / 粘贴；图片与文件粘贴走 fs 拓展的"上传"通道写入沙箱，再以附件 parts 发送给 AI
+  - **消息发送**：文字 / 图片 / 文件输入 / 粘贴；图片与文件粘贴走 fs 拓展的"上传"通道（`taichu.fs.upload`）写入沙箱，再以附件 parts 发送给 AI
   - **消息列表**：用户消息在右侧，AI 回复在左侧
-- **不**实现会话列表侧栏（"历史会话"按钮弹窗已覆盖）；**不**实现设置 / 模型选择等超出 AI 侧栏边界的 UI
+- **不**实现会话列表侧栏（"历史会话"按钮弹窗已覆盖）；**不**实现设置等超出 AI 侧栏边界的 UI；layout 切换由 layout 控制命令（`taichu.layout.*`）统一处理
 
 ## 与其它模块的契约
 
@@ -100,6 +111,7 @@ client/src/
 - 与 agent-image 的所有数据通道**必须**经 gateway（控制平面走 `POST /runtime`，数据平面走 `{runtimeId}.{RUNTIME_HOST_SUFFIX}` 子域名反代），不允许在生产环境直连 agent-image Pod IP。
 - 业务 VSIX 通过 `registryClient.fetchMetadata()` 拉取元数据清单，从 CDN/OSS 下载 `.vsix` 后装入 `ExtensionService`；client **不**维护业务 VSIX 源码。
 - 鉴权 Header（`X-User-Id` / `X-Tenant-Id` / `X-Deploy-Env` / `X-Runtime-Id`）由 gateway 注入并透传，client 不硬编码凭据。
+- **HOST 按环境划分**：gateway / registry / runtime 子域的 HOST 落在 `.env.{DEPLOY_ENV}`，dev / staging / prod 三个环境独立维护；不得在源码 / K8s ConfigMap 中硬编码环境相关 HOST。
 
 ## 一致性义务
 
