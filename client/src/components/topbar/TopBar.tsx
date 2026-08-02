@@ -3,31 +3,121 @@ import React, { useState, useEffect } from 'react';
 /**
  * Taichu TopBar — 框架级顶部 chrome
  *
- * 设计原则:
- *   - 不写业务逻辑 / 不直接调 opencode / 不注入 runtime
- *   - 不订阅 VSIX 事件 / 不编排槽位
- *   - 当前含一个 36px 高的容器, 右侧放一个 toggle 按钮
- *   - 按钮 dispatch 'taichu:toggle-ai-panel' 事件, App.tsx onLoad 监听并调 LayoutService.toggleSlot('right')
+ * 布局 (flex layout, space-between):
+ *   - left: "T" logo + "太初 (Taichu) brand"
+ *   - right: 3 个 layout 按钮 (左侧栏 / 右侧栏 / 底部栏) + 登录入口
  *
- * 槽位: 在 client/src/config/layout.tsx 的 BoxPanel 顶部插入,框架 chrome 容器层
+ * 3 个 layout 按钮 (Trae 风格):
+ *   - 折叠状态: 对应 layout 位置空心 icon
+ *   - 展开状态: 对应 layout 位置填充 icon
+ *   - 点击 → dispatch 'taichu:layout-{left|right|bottom}-toggle' 事件
+ *   - LayoutComponent 监听, 切换对应 slot 显隐
+ *
+ * 登录入口:
+ *   - 未登录: 纯文字 "登录" 按钮 (紫色文字颜色), 点击 → 'taichu:login-show'
+ *   - 已登录: 圆形头像 (用户名首字母), 点击 → 'taichu:login-show' (切换账号)
  */
-export const TopBar: React.FC = () => {
-  const [rightVisible, setRightVisible] = useState<boolean>(true);
 
-  // 监听 right slot 变化, 同步按钮状态(从 LayoutService.getTabbarService 拿)
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail && typeof detail.visible === 'boolean') {
-        setRightVisible(detail.visible);
-      }
+interface LoginSession {
+  username?: string;
+  userId?: string;
+  avatarUrl?: string;
+}
+
+function readLoginSession(): LoginSession | null {
+  const cfg = (window as any).__TAICHU_DEPLOY_CONFIG__;
+  if (cfg?.userId) {
+    return {
+      username: cfg.username || cfg.userId,
+      userId: cfg.userId,
+      avatarUrl: cfg.avatarUrl || '',
     };
-    window.addEventListener('taichu:right-slot-changed', handler);
-    return () => window.removeEventListener('taichu:right-slot-changed', handler);
+  }
+  try {
+    const raw = localStorage.getItem('taichu.login.session');
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && s.userId) return s;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+const LeftIcon = ({ filled }: { filled: boolean }) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    {filled && <rect x="3" y="4" width="6" height="16" fill="currentColor" stroke="none" />}
+  </svg>
+);
+
+const RightIcon = ({ filled }: { filled: boolean }) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    {filled && <rect x="15" y="4" width="6" height="16" fill="currentColor" stroke="none" />}
+  </svg>
+);
+
+const BottomIcon = ({ filled }: { filled: boolean }) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    {filled && <rect x="3" y="16" width="18" height="4" fill="currentColor" stroke="none" />}
+  </svg>
+);
+
+export const TopBar: React.FC = () => {
+  const [leftVisible, setLeftVisible] = useState<boolean>(true);
+  const [rightVisible, setRightVisible] = useState<boolean>(true);
+  const [bottomVisible, setBottomVisible] = useState<boolean>(true);
+  const [session, setSession] = useState<LoginSession | null>(null);
+
+  // 监听三个 layout slot 的状态变化 (来自 LayoutComponent 或其它 source)
+  useEffect(() => {
+    const handlers = {
+      'taichu:layout-left-changed': (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        if (detail && typeof detail.visible === 'boolean') setLeftVisible(detail.visible);
+      },
+      'taichu:layout-right-changed': (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        if (detail && typeof detail.visible === 'boolean') setRightVisible(detail.visible);
+      },
+      'taichu:layout-bottom-changed': (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        if (detail && typeof detail.visible === 'boolean') setBottomVisible(detail.visible);
+      },
+    };
+    Object.entries(handlers).forEach(([event, handler]) => {
+      window.addEventListener(event, handler);
+    });
+    return () => {
+      Object.entries(handlers).forEach(([event, handler]) => {
+        window.removeEventListener(event, handler);
+      });
+    };
   }, []);
 
-  const toggleAiPanel = () => {
-    window.dispatchEvent(new CustomEvent('taichu:toggle-ai-panel'));
+  // 监听登录状态变化
+  useEffect(() => {
+    const update = () => setSession(readLoginSession());
+    update();
+    window.addEventListener('taichu:login-session-changed', update);
+    return () => window.removeEventListener('taichu:login-session-changed', update);
+  }, []);
+
+  const toggleLeft = () => {
+    window.dispatchEvent(new CustomEvent('taichu:layout-left-toggle'));
+  };
+  const toggleRight = () => {
+    window.dispatchEvent(new CustomEvent('taichu:layout-right-toggle'));
+  };
+  const toggleBottom = () => {
+    window.dispatchEvent(new CustomEvent('taichu:layout-bottom-toggle'));
+  };
+
+  const showLogin = () => {
+    window.dispatchEvent(new CustomEvent('taichu:login-show'));
   };
 
   return (
@@ -46,14 +136,45 @@ export const TopBar: React.FC = () => {
           user-select: none;
           flex-shrink: 0;
         }
+        .tc-topbar__left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .tc-topbar__logo {
+          width: 24px;
+          height: 24px;
+          border-radius: 6px;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: 700;
+          color: #fff;
+          line-height: 1;
+        }
+        .tc-topbar__brand {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--foreground, #e5e7eb);
+          letter-spacing: 0.01em;
+        }
         .tc-topbar__right {
           display: flex;
           align-items: center;
           gap: 4px;
         }
+        .tc-topbar__divider {
+          width: 1px;
+          height: 20px;
+          background: rgba(255, 255, 255, 0.25);
+          margin: 0 8px;
+        }
+        /* 3 个 layout toggle 按钮 - 纯 icon, 无外壳 */
         .tc-topbar__btn {
-          width: 28px;
-          height: 28px;
+          width: 24px;
+          height: 24px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -61,41 +182,104 @@ export const TopBar: React.FC = () => {
           background: transparent;
           color: var(--descriptionForeground, #8b929b);
           cursor: pointer;
-          border-radius: 4px;
+          padding: 0;
+          border-radius: 0;
+          transition: color 0.15s;
         }
         .tc-topbar__btn:hover {
-          background: rgba(255, 255, 255, 0.06);
           color: var(--foreground, #e5e7eb);
         }
         .tc-topbar__btn.is-active {
-          color: var(--foreground, #e5e7eb);
-          background: rgba(255, 255, 255, 0.04);
+          color: #c7d2fe;
+        }
+        .tc-topbar__btn:focus-visible {
+          outline: none;
+          color: #c7d2fe;
+        }
+        .tc-topbar__btn:active {
+          transform: scale(0.9);
         }
         .tc-topbar__btn svg {
           width: 16px;
           height: 16px;
         }
+        /* 登录 按钮 - 纯文字 + 紫色文字颜色, 宽度 56px */
+        .tc-topbar__login {
+          width: 56px;
+          height: 24px;
+          padding: 0 10px;
+          color: #a5b4fc;
+          font-size: 12px;
+          font-weight: 500;
+          border-radius: 4px;
+          transition: color 0.15s, background 0.15s;
+        }
+        .tc-topbar__login:hover {
+          color: #c7d2fe;
+          background: rgba(99, 102, 241, 0.12);
+        }
+        /* 用户头像 - 圆形 logo */
+        .tc-topbar__avatar {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 600;
+          color: #fff;
+          line-height: 1;
+        }
       `}</style>
+      <div className="tc-topbar__left">
+        <span className="tc-topbar__logo">T</span>
+        <span className="tc-topbar__brand">太初 (Taichu)</span>
+      </div>
       <div className="tc-topbar__right">
         <button
-          className={`tc-topbar__btn ${rightVisible ? 'is-active' : ''}`}
-          title="切换 AI 面板"
-          onClick={toggleAiPanel}
+          className={`tc-topbar__btn ${leftVisible ? 'is-active' : ''}`}
+          title={leftVisible ? '折叠左侧栏' : '展开左侧栏'}
+          onClick={toggleLeft}
         >
-          {rightVisible ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="3" y="4" width="18" height="16" rx="2" />
-              <line x1="15" y1="4" x2="15" y2="20" />
-              <line x1="6" y1="9" x2="12" y2="9" />
-              <line x1="6" y1="13" x2="12" y2="13" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="3" y="4" width="18" height="16" rx="2" />
-              <line x1="15" y1="4" x2="15" y2="20" />
-            </svg>
-          )}
+          <LeftIcon filled={leftVisible} />
         </button>
+        <button
+          className={`tc-topbar__btn ${bottomVisible ? 'is-active' : ''}`}
+          title={bottomVisible ? '折叠底部栏' : '展开底部栏'}
+          onClick={toggleBottom}
+        >
+          <BottomIcon filled={bottomVisible} />
+        </button>
+        <button
+          className={`tc-topbar__btn ${rightVisible ? 'is-active' : ''}`}
+          title={rightVisible ? '折叠右侧栏' : '展开右侧栏'}
+          onClick={toggleRight}
+        >
+          <RightIcon filled={rightVisible} />
+        </button>
+        <div className="tc-topbar__divider" />
+
+        {session ? (
+          <button
+            className="tc-topbar__btn"
+            title={`${session.username || session.userId} (点击切换账号)`}
+            onClick={showLogin}
+          >
+            <span className="tc-topbar__avatar">
+              {(session.username || session.userId || 'U').charAt(0).toUpperCase()}
+            </span>
+          </button>
+        ) : (
+          <button
+            className="tc-topbar__btn tc-topbar__login"
+            title="登录"
+            onClick={showLogin}
+          >
+            登录
+          </button>
+        )}
       </div>
     </div>
   );
