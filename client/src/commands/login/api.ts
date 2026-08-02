@@ -1,5 +1,5 @@
 /**
- * login session API — 客户端登录状态读写
+ * login session API — 客户端登录状态读写 (跨 commands + webview 复用)
  *
  * 数据来源优先级:
  *   1. window.__TAICHU_DEPLOY_CONFIG__.userId (server.ts 注入, OAuth 登录后)
@@ -16,7 +16,8 @@
  *   - 删 localStorage
  *   - 删 window.__TAICHU_LOGIN_SESSION__
  *   - 触发 'taichu:login-session-changed' 事件
- *   - 重定向到 /auth/github/logout (server.ts 提供的登出)
+ *
+ * 跨 commands/login + components/login + components/user 复用
  */
 
 export interface LoginSession {
@@ -55,14 +56,12 @@ export function writeSession(session: LoginSession): void {
   window.dispatchEvent(
     new CustomEvent('taichu:login-session-changed', { detail: session })
   );
-  // 如果是从受限页面跳转来登录, redirect_to_url 携带原路径, 登录后回跳
   const redirect = getRedirectTo();
   if (redirect && redirect !== '/' && redirect !== window.location.pathname) {
     setTimeout(() => {
       window.location.href = redirect;
     }, 0);
   }
-  // 默认情况: 已在 IDE 骨架内, 不重定向, 由 LoginView 监听 session-changed 自动隐藏
 }
 
 export function clearSession(): void {
@@ -75,16 +74,11 @@ export function clearSession(): void {
   window.dispatchEvent(
     new CustomEvent('taichu:login-session-changed', { detail: null })
   );
-  // 走 server.ts 登出 (清 .env 中的 X_USER_ID)
-  setTimeout(() => {
-    window.location.href = '/auth/github/logout';
-  }, 0);
 }
 
 export function getRedirectTo(): string {
   const params = new URLSearchParams(window.location.search);
   const raw = params.get('redirect_to_url') || '/';
-  // 防开放重定向: 只接受相对路径
   return raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
 }
 

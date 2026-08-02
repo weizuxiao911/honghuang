@@ -1,15 +1,14 @@
 import { Injectable } from '@opensumi/di';
-import { Domain, CommandContribution } from '@opensumi/ide-core-common';
+import { Domain } from '@opensumi/ide-core-common';
 import { BrowserModule } from '@opensumi/ide-core-browser';
 import { ComponentContribution, ComponentRegistry } from '@opensumi/ide-core-browser/lib/layout';
 
 import { LoginView } from './LoginView';
-import { LoginCommandsContribution } from './commands';
 
 /**
- * login 槽位实现 — 与 topbar/rightbar/bottombar 同级, 走 OpenSumi 标准槽位机制
+ * login 槽位 webview 实现 (components/login/)
  *
- * 与官方 @opensumi/ide-menu-bar 同一机制:
+ * 与 topbar/rightbar/bottombar 同级, 走 OpenSumi 标准槽位机制:
  *   - LoginContribution @Domain(ComponentContribution), registerComponent 里
  *     registry.register('login-default', { id, component: LoginView })
  *   - LoginModule (BrowserModule + contributionProvider = ComponentContribution)
@@ -29,8 +28,8 @@ import { LoginCommandsContribution } from './commands';
  * 旧路径 (向后兼容): 通过 window event 'taichu:login-custom-view' 或
  * window.__TAICHU_LOGIN_API__.setCustomView(component) 接管本 view.
  *
- * 登录状态读写 (注册在 LoginCommandsModule):
- *   - taichu.login.session.get / set / clear
+ * 登录状态读写 commands (taichu.login.session.*) 注册在 commands/login/LoginCommandsModule:
+ *   - login session 共享 api: commands/login/api.ts
  *   - window.__TAICHU_LOGIN_API__ (在 LoginView 首次 mount 时安装)
  */
 @Injectable()
@@ -49,11 +48,4 @@ export class LoginModule extends BrowserModule {
   providers = [LoginContribution];
 
   contributionProvider = ComponentContribution;
-}
-
-@Injectable()
-export class LoginCommandsModule extends BrowserModule {
-  providers = [LoginCommandsContribution];
-
-  contributionProvider = CommandContribution;
 }

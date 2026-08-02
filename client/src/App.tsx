@@ -7,9 +7,11 @@ import '@codeblitzjs/ide-core/languages';
 
 import { slots } from './config/slots';
 import { TopBarModule } from './components/layout/topbar';
-import { LoginModule, LoginCommandsModule } from './components/layout/login';
-import { UserModule } from './components/layout/user';
+import { LoginModule } from './components/login';
+import { LoginCommandsModule } from './commands/login';
+import { UserModule } from './components/user';
 import { FsModule } from './components/layout/fs';
+import { FsCommandsModule } from './commands/fs';
 import { RightBarModule, BottomModule } from './components/layout';
 import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';
@@ -36,8 +38,8 @@ export const App: React.FC = () => {
       appConfig={{
         ...slots,
         defaultPreferences: preferences,
-        // 注入内置拓展 Module: topBar chrome + login 槽位 + login commands + userPage 槽位 + fs 槽位 (登录后自动激活) + bottombar (tc-problems) + rightbar 容器
-        modules: [TopBarModule, LoginModule, LoginCommandsModule, UserModule, FsModule, BottomModule, RightBarModule],
+        // 注入内置拓展 Module: topBar chrome + login 槽位 (webview) + login commands + userPage 槽位 (webview) + fs 槽位 (框架能力) + fs commands + bottombar + rightbar 容器
+        modules: [TopBarModule, LoginModule, LoginCommandsModule, UserModule, FsModule, FsCommandsModule, BottomModule, RightBarModule],
       }}
       runtimeConfig={runtimeConfig as any}
     />

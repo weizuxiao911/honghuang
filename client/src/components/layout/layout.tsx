@@ -2,6 +2,8 @@ import React from 'react';
 import { SlotLocation, SlotRenderer } from '@opensumi/ide-core-browser';
 import { BoxPanel, SplitPanel } from '@opensumi/ide-core-browser/lib/components';
 
+import { SandboxLoading } from './fs/SandboxLoading';
+
 /**
  * 客户端默认 LayoutComponent — 由 CodeBlitz AppRenderer 渲染
  *
@@ -75,6 +77,8 @@ export function LayoutComponent(): React.ReactElement {
       <SlotRenderer slot="login" />
       {/* userPage 槽位 (TopBar 账号按钮触发的浮动弹窗, 默认渲染 UserView) */}
       <SlotRenderer slot="userPage" />
+      {/* sandbox 启动 loading overlay (登录后到 sandbox ready 之间的等待, 由 fs 槽位派发事件驱动) */}
+      <SandboxLoading />
     </React.Fragment>
   );
 }

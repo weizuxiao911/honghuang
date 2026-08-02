@@ -107,6 +107,12 @@ async function fetchRuntime(sess: LoginSession): Promise<RuntimeSnapshot> {
 
 /**
  * 激活沙箱 runtime: 创建/获取 RuntimeSnapshot, 缓存 RuntimeInfo
+ *
+ * 事件流:
+ *   1. taichu:fs-loading (detail: { phase: 'fetching-runtime' }) — 开始 POST /runtime
+ *   2. taichu:fs-ready   (detail: RuntimeInfo)                  — sandbox 就绪, provider 激活
+ *   3. taichu:fs-error   (detail: Error)                        — 任何阶段失败 (含可重试标记)
+ *   4. taichu:fs-teardown                                          — 登出时清状态
  */
 export async function activateRuntime(): Promise<RuntimeInfo | null> {
   const sess = await readSession();
@@ -114,6 +120,12 @@ export async function activateRuntime(): Promise<RuntimeInfo | null> {
     console.warn('[fs] activateRuntime: no login session, skip');
     return null;
   }
+  // 派发 loading — SandboxLoading overlay 显示
+  window.dispatchEvent(
+    new CustomEvent('taichu:fs-loading', {
+      detail: { phase: 'fetching-runtime' },
+    })
+  );
   try {
     const snap = await fetchRuntime(sess);
     const info: RuntimeInfo = {
