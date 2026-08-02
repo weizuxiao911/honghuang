@@ -38,3 +38,6 @@ export { LoginModule, LoginContribution, LoginCommandsModule } from './login';
 // userPage slot — TopBar 账号按钮触发的浮动弹窗, 可被 VSIX 自定义 view container 替换
 export { UserView } from './user/UserView';
 export { UserModule, UserContribution } from './user';
+
+// fs slot — 登录后自动激活 sandbox scheme 文件系统, 对接 gateway runtime
+export { FsModule, FsContribution } from './fs';

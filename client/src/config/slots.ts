@@ -27,7 +27,9 @@ import { LayoutComponent } from '../components/layout/layout';
  * OpenSumi 兼容拓展标准开发, 与 client 解耦.
  */
 export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layoutComponent' | 'layoutConfig' | 'defaultPanels'> = {
-  workspaceDir: '/',
+  // IDE workspace 根: sandbox scheme 指向沙箱内 /workspace 目录
+  // (fs 拓展注册了 sandbox scheme FileSystemProvider, 登录后自动激活)
+  workspaceDir: 'sandbox:/workspace',
   layoutComponent: LayoutComponent,
   layoutConfig: {
     [SlotLocation.top]: {
