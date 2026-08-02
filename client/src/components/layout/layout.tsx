@@ -37,7 +37,7 @@ export function LayoutComponent(): React.ReactElement {
       );
     };
     const syncRight = () => {
-      const visible = layoutService.isVisible(SlotLocation.right);
+      const visible = layoutService.isVisible(SlotLocation.rightBar);
       setRightVisible(visible);
       window.dispatchEvent(
         new CustomEvent('taichu:layout-right-changed', { detail: { visible } })
@@ -68,7 +68,7 @@ export function LayoutComponent(): React.ReactElement {
   // bottom 用 local state 控制 (OpenSumi 的 bottom slot 没注册 resizeHandle, 无法响应 panel 显隐)
   useEffect(() => {
     const leftHandler = () => layoutService.toggleSlot(SlotLocation.left);
-    const rightHandler = () => layoutService.toggleSlot(SlotLocation.right);
+    const rightHandler = () => layoutService.toggleSlot(SlotLocation.rightBar);
     const bottomHandler = () => {
       // bottom 用 local state + 调 updatePanelVisibility 触发实际 panel 显隐
       setBottomVisible((v) => {
@@ -132,7 +132,7 @@ export function LayoutComponent(): React.ReactElement {
             />
           </SplitPanel>
           <SlotRenderer
-            slot={SlotLocation.right}
+            slot={SlotLocation.rightBar}
             isTabbar
             defaultSize={420}
             minResize={280}

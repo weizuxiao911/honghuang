@@ -37,8 +37,9 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
         '@opensumi/ide-search',
       ],
     },
-    [SlotLocation.right]: {
+    [SlotLocation.rightBar]: {
       modules: [
+        'ai-panel-default'
       ]
     },
     [SlotLocation.main]: {
