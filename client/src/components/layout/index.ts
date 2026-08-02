@@ -3,9 +3,12 @@
  *
  * 本目录按 slot 概念分组:
  *   - layout.tsx          框架级 LayoutComponent (IDE 布局壳)
- *   - topbar/             topBar slot 容器 (chrome 容器, 装载 menu-bar 等)
- *   - rightbar/           rightBar slot 容器 (装载业务拓展: AI 助手 / chat / output 等)
- *   - bottombar/          bottomBar slot 容器 (装载问题/终端/output, 默认 'tc-problems')
+ *   - topbar/             top slot 容器 (chrome 容器, 装载 menu-bar 等)
+ *   - rightbar/           right slot 容器 (装载业务拓展: AI 助手 / chat / output 等)
+ *   - bottombar/          bottom slot 容器 (装载问题/终端/output, 默认 'tc-problems')
+ *
+ * 注意: 槽位 id 必须用 OpenSumi 标准 id (left / right / bottom),
+ * leftBar / rightBar / bottomBar 是框架 @deprecated 别名, 无面板渲染器.
  *
  * slot 装载的 module 各自是独立 BrowserModule 拓展, 按 VS Code 兼容拓展标准或
  * OpenSumi 兼容拓展标准开发, 与 client 框架解耦维护.
@@ -18,7 +21,9 @@ export { TopBarModule, TopBarContribution } from './topbar';
 
 // rightBar slot
 export { RightBar } from './rightbar/RightBar';
-export { RightBarModule, RightBarContribution } from './rightbar/RightBarModule';
+export { RightBarModule, RightBarContribution, RightBarRendererContribution } from './rightbar/RightBarModule';
+export { RightTopTabbarView } from './rightbar/RightTopTabbarView';
+export { RightPanelRenderer } from './rightbar/RightPanelRenderer';
 
 // bottomBar slot
 export { BottomModule, BottomContribution } from './bottombar/BottomModule';

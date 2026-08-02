@@ -23,10 +23,19 @@ export class BottomContribution implements ComponentContribution {
     registry.register('tc-problems', {
       id: 'tc-problems',
       component: ProblemsView,
+    }, {
+      // tabbar 容器必需: containerId 与注册 key 一致, iconClass/title 渲染在 tab 上
+      containerId: 'tc-problems',
+      iconClass: 'codicon codicon-warning',
+      title: '问题',
     });
     registry.register('tc-bottom-placeholder', {
       id: 'tc-bottom-placeholder',
       component: BottomPlaceholder,
+    }, {
+      containerId: 'tc-bottom-placeholder',
+      iconClass: 'codicon codicon-symbol-event',
+      title: '占位',
     });
   }
 }

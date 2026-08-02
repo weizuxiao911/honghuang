@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { SlotLocation } from '@opensumi/ide-core-browser';
+import { useInjectable } from '@opensumi/ide-core-browser/lib/react-hooks/injectable-hooks';
+import { IMainLayoutService } from '@opensumi/ide-main-layout/lib/common';
 
 /**
  * Taichu TopBar — 框架级顶部 chrome
@@ -10,8 +13,10 @@ import React, { useState, useEffect } from 'react';
  * 3 个 layout 按钮 (Trae 风格):
  *   - 折叠状态: 对应 layout 位置空心 icon
  *   - 展开状态: 对应 layout 位置填充 icon
- *   - 点击 → dispatch 'taichu:layout-{left|right|bottom}-toggle' 事件
- *   - LayoutComponent 监听, 切换对应 slot 显隐
+ *   - 点击 → 直接调 layoutService.toggleSlot(left|right|bottom)
+ *     (OpenSumi 原生面板渲染器负责折叠/展开 + 拖拽 resize)
+ *   - icon 状态通过订阅 TabbarService.onCurrentChange / onSizeChange 同步,
+ *     拖拽折叠面板时也会触发 (onSizeChange)
  *
  * 登录入口:
  *   - 未登录: 纯文字 "登录" 按钮 (紫色文字颜色), 点击 → 'taichu:login-show'
@@ -79,36 +84,35 @@ const BottomIcon = ({ filled }: { filled: boolean }) => (
 );
 
 export const TopBar: React.FC = () => {
+  const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
   const [leftVisible, setLeftVisible] = useState<boolean>(true);
   const [rightVisible, setRightVisible] = useState<boolean>(true);
   const [bottomVisible, setBottomVisible] = useState<boolean>(true);
   const [session, setSession] = useState<LoginSession | null>(null);
 
-  // 监听三个 layout slot 的状态变化 (来自 LayoutComponent 或其它 source)
+  // 订阅三个 layout slot 的面板状态 (toggle 按钮 / 拖拽折叠都会触发)
   useEffect(() => {
-    const handlers = {
-      'taichu:layout-left-changed': (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        if (detail && typeof detail.visible === 'boolean') setLeftVisible(detail.visible);
-      },
-      'taichu:layout-right-changed': (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        if (detail && typeof detail.visible === 'boolean') setRightVisible(detail.visible);
-      },
-      'taichu:layout-bottom-changed': (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        if (detail && typeof detail.visible === 'boolean') setBottomVisible(detail.visible);
-      },
+    const sync = (slot: string, setter: (v: boolean) => void) => () => {
+      setter(layoutService.isVisible(slot));
     };
-    Object.entries(handlers).forEach(([event, handler]) => {
-      window.addEventListener(event, handler);
+    const slots = [
+      { slot: SlotLocation.left, setter: setLeftVisible },
+      { slot: SlotLocation.right, setter: setRightVisible },
+      { slot: SlotLocation.bottom, setter: setBottomVisible },
+    ];
+    const disposables: { dispose(): void }[] = [];
+    slots.forEach(({ slot, setter }) => {
+      const service = layoutService.getTabbarService(slot);
+      const syncFn = sync(slot, setter);
+      // 初始同步
+      syncFn();
+      disposables.push(service.onCurrentChange(syncFn));
+      disposables.push(service.onSizeChange(syncFn));
     });
     return () => {
-      Object.entries(handlers).forEach(([event, handler]) => {
-        window.removeEventListener(event, handler);
-      });
+      disposables.forEach((d) => d.dispose());
     };
-  }, []);
+  }, [layoutService]);
 
   // 监听登录状态变化
   useEffect(() => {
@@ -119,13 +123,13 @@ export const TopBar: React.FC = () => {
   }, []);
 
   const toggleLeft = () => {
-    window.dispatchEvent(new CustomEvent('taichu:layout-left-toggle'));
+    layoutService.toggleSlot(SlotLocation.left);
   };
   const toggleRight = () => {
-    window.dispatchEvent(new CustomEvent('taichu:layout-right-toggle'));
+    layoutService.toggleSlot(SlotLocation.right);
   };
   const toggleBottom = () => {
-    window.dispatchEvent(new CustomEvent('taichu:layout-bottom-toggle'));
+    layoutService.toggleSlot(SlotLocation.bottom);
   };
 
   const showLogin = () => {
