@@ -84,25 +84,25 @@ public class PlatformProperties {
          */
         private long sseHeartbeatSeconds = 15;
         /**
-         * SSE 续约间隔 (秒). 默认 120s; 需小于 ttl, 防止订阅期间 TTL 过期.
-         */
-        private long sseRenewalSeconds = 120;
-        /**
          * 数据平面流量续约节流 (秒). 走 runtime 的请求距上次续约不足该窗口时跳过,
-         * 防止高流量下频繁判断/续约. 默认 60s; 需小于 ttl.
+         * 防止高流量下频繁判断/续约. 默认 5s; 需小于 ttl.
          */
-        private long renewThrottleSeconds = 60;
+        private long renewThrottleSeconds = 5;
         /**
-         * 续约阈值 (秒): 剩余 TTL 不超过该值才续满. 默认 180s (3 分钟), 硬上限 3 分钟,
-         * 配置超过上限按 180s 处理. 见 {@link #effectiveRenewThresholdSeconds()}.
+         * 续约阈值 (秒): 剩余 TTL 不超过该值才续满. 默认 180s (3 分钟).
          */
         private long renewThresholdSeconds = 180;
+        /**
+         * 续约阈值硬上限 (秒): 阈值超过该值按该值处理. 默认 180s (3 分钟).
+         */
+        private long renewThresholdMaxSeconds = 180;
 
         /**
-         * 生效的续约阈值: min(配置, 3 分钟). 剩余 TTL ≤ 该值 → 自动续满 ttl.
+         * 生效的续约阈值: min(阈值配置, 上限配置).
+         * 剩余 TTL ≤ 该值 → 自动续满 ttl.
          */
         public long effectiveRenewThresholdSeconds() {
-            return Math.min(renewThresholdSeconds, 180);
+            return Math.min(renewThresholdSeconds, renewThresholdMaxSeconds);
         }
         /**
          * 镜像拉取策略 (Always / IfNotPresent / Never).

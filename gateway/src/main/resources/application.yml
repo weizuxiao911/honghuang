@@ -53,8 +53,9 @@ gateway:
     wait-timeout-seconds: 120
     poll-interval-ms: 2000
     image-pull-policy: IfNotPresent
-    renew-throttle-seconds: 60
+    renew-throttle-seconds: 5
     renew-threshold-seconds: 180
+    renew-threshold-max-seconds: 180
     reclaim:
       # TTL 到期自动回收 (设计文档第四章流程 6)
       sweep-enabled: true          # 兜底巡检开关

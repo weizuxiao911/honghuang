@@ -21,13 +21,15 @@ import java.util.UUID;
 /**
  * SSE 事件流编排器.
  *
- * 合并四个子流:
+ * 合并三个子流:
  * <ul>
  *   <li>initial state: 连接建立时立即推送当前 runtime 快照 (status=INITIAL_STATE)</li>
  *   <li>events: Redis Pub/Sub 订阅 → 过滤 userId → 格式化</li>
  *   <li>heartbeat: 周期性 SSE comment 维持长连接</li>
- *   <li>renewal: 周期性续约 runtime 租约, 防止订阅期间 TTL 过期</li>
  * </ul>
+ *
+ * 续约不再走 SSE 专用子流: 数据平面流量续约 (RuntimeRoutingFilter) 已覆盖
+ * 所有走 runtime 的请求 (含 sandbox 内 SSE 流), 订阅期间 TTL 不会被过期回收.
  *
  * Spring WebFlux 要求返回 {@link ServerSentEvent} 才能正确生成标准 SSE 协议
  * (event:/id:/data:), 直接返回 Flux&lt;String&gt; 会被当作 text/event-stream 模式
@@ -42,7 +44,6 @@ public class SseEventStream {
 
     private final EventPublisher eventPublisher;
     private final SseEventFormatter formatter;
-    private final SseLeaseRenewer renewer;
     private final RuntimeRepository repository;
     private final ObjectMapper objectMapper;
     private final PlatformProperties config;
@@ -52,7 +53,6 @@ public class SseEventStream {
      */
     public Flux<ServerSentEvent<String>> buildForUser(String userId) {
         long heartbeatSec = config.getRuntime().getSseHeartbeatSeconds();
-        long renewalSec = config.getRuntime().getSseRenewalSeconds();
 
         Flux<ServerSentEvent<String>> events = eventPublisher.subscribeToEvents()
                 .filter(msg -> formatter.isForUser(msg, userId))
@@ -61,13 +61,9 @@ public class SseEventStream {
         Flux<ServerSentEvent<String>> heartbeats = Flux.interval(Duration.ofSeconds(heartbeatSec))
                 .map(tick -> ServerSentEvent.<String>builder().comment("heartbeat").build());
 
-        Flux<ServerSentEvent<String>> renewals = Flux.interval(Duration.ofSeconds(renewalSec))
-                .flatMap(tick -> renewer.renew(userId).thenReturn(
-                        ServerSentEvent.<String>builder().comment("renewed").build()));
-
         Flux<ServerSentEvent<String>> initialState = buildInitialState(userId);
 
-        return Flux.concat(initialState, Flux.merge(events, heartbeats, renewals))
+        return Flux.concat(initialState, Flux.merge(events, heartbeats))
                 .doOnSubscribe(s -> log.info("SSE 连接建立: userId={}", userId))
                 .doFinally(signal -> log.info("SSE 连接关闭: userId={}, signal={}", userId, signal));
     }

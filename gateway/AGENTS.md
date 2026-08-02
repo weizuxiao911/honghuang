@@ -33,13 +33,12 @@
 
 ## 沙箱生命周期维护规则（设计文档第四章流程 6）
 
-运行时沙箱默认 TTL 存活（`gateway.runtime.ttl`，部署默认 600s = 10 分钟），**有操作才续约**，三条路径统一规则 = **剩余 TTL ≤ min(`renew-threshold-seconds`, 3 分钟) 才续满全量 ttl**（`RuntimeRepository#renewIfLow`，Lua 原子判断+续约，阈值硬上限 3 分钟，见 `PlatformProperties#effectiveRenewThresholdSeconds`）：
+运行时沙箱默认 TTL 存活（`gateway.runtime.ttl`，部署默认 600s = 10 分钟），**有操作才续约**，统一规则 = **剩余 TTL ≤ min(`renew-threshold-seconds`, `renew-threshold-max-seconds`) 才续满全量 ttl**（`RuntimeRepository#renewIfLow`，Lua 原子判断+续约；`renew-threshold-max-seconds` 默认 180s 为阈值硬上限，见 `PlatformProperties#effectiveRenewThresholdSeconds`，禁止在代码里硬编码阈值数值）：
 
-1. SSE 每 `sse-renewal-seconds`（默认 120s）检查续约（`SseLeaseRenewer`）；
-2. `POST /runtime` 命中可复用索引检查续约（`RuntimeService#reuseExisting`）；
-3. **数据平面流量续约**：所有走 runtime 的请求（子域名 + `/agent/*`）在 `RuntimeRoutingFilter#renewIfNeeded` 检查续约，按 `renew-throttle-seconds`（默认 60s）节流防频繁 PTTL/EXPIRE。
+1. `POST /runtime` 命中可复用索引检查续约（`RuntimeService#reuseExisting`）；
+2. **数据平面流量续约**：所有走 runtime 的请求（子域名 + `/agent/*`，含 sandbox 内 SSE 流）在 `RuntimeRoutingFilter#renewIfNeeded` 检查续约，按 `renew-throttle-seconds`（默认 5s）节流防频繁 PTTL/EXPIRE。
 
-续约语义变更（阈值、目标 ttl、节流）时三处路径同步改，并核对 README「沙箱生命周期与回收」。
+**无独立 SSE 续约子流**（`SseLeaseRenewer` 已移除）：数据平面流量续约已覆盖订阅期间租约保活。续约语义变更（阈值、目标 ttl、节流）时两条路径同步改，并核对 README「沙箱生命周期与回收」。
 
 回收走**双链路**，缺一不可：
 
