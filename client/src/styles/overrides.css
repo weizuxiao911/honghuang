@@ -161,3 +161,40 @@
 .tc-right-panel [class*="view_container___"] > [class*="titlebar___"] {
   display: none !important;
 }
+
+/* 终端 xterm 背景与三面板统一 (#151b21 → 面板色) */
+.xterm,
+.xterm-viewport,
+.xterm-screen {
+  background-color: var(--tc-panel-bg) !important;
+}
+
+/* 终端滚动条: macOS 原生滚动条在深色面板上是白色/浅色,
+   滚动时明显突兀, 统一为深色细滚动条 */
+.xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+}
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* login / userPage 槽位的 SlotRenderer 容器: LoginView / UserView 均为
+   position:fixed 自管显隐, 外层容器 (resize-wrapper, 100%×100%) 会占位
+   撑高 codeblitz-root (750×3=2250) 触发内部滚动 (scrollTop=36), 导致
+   整个 IDE 布局上移 36px — 顶栏被推出视口 + 底部空白。
+   用 height:0 + overflow:hidden 消除占位 (不能 display:none — fixed
+   子视图在 display:none 祖先内同样被隐藏, 账号弹窗/登录 overlay 会消失) */
+.codeblitz-root > .resize-wrapper:has(.tc-login-root),
+.codeblitz-root > .resize-wrapper:has(.tc-user-popover) {
+  height: 0 !important;
+  overflow: hidden !important;
+}
