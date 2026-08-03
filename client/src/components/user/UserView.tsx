@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { logout } from '../../commands/login/api';
 
 /**
  * userPage 槽位默认 view — client 内置用户信息卡片 (右上角浮动弹窗)
@@ -102,17 +103,9 @@ export const UserView: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
-    // 客户端轻量退出: 只清本地 session + 派发 session-changed 事件,
+    // 登出: 先销毁沙箱 runtime (gateway DELETE /runtime), 再清本地 session。
     // 不跳 server.ts logout 端点 (避免 404 页面跳转, UI 直接切回登录按钮)
-    try {
-      localStorage.removeItem('taichu.login.session');
-    } catch {
-      /* ignore */
-    }
-    delete (window as any).__TAICHU_LOGIN_SESSION__;
-    window.dispatchEvent(
-      new CustomEvent('taichu:login-session-changed', { detail: null })
-    );
+    void logout();
     setVisible(false);
   };
 

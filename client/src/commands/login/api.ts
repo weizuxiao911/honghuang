@@ -76,6 +76,35 @@ export function clearSession(): void {
   );
 }
 
+function getGatewayUrl(): string {
+  return (
+    (window as any).__TAICHU_GATEWAY_URL__ ||
+    (window as any).__TAICHU_DEPLOY_CONFIG__?.gatewayUrl ||
+    'http://gateway.taichu.localhost'
+  );
+}
+
+/**
+ * 登出: 先销毁沙箱 runtime (gateway DELETE /runtime), 再清本地 session。
+ *
+ * 必须在清 session 前取 userId (DELETE 按 X-User-Id 定位 runtime);
+ * 沙箱销毁失败不阻塞登出 (TTL 回收兜底), 静默忽略。
+ */
+export async function logout(): Promise<void> {
+  const session = readSession();
+  if (session?.userId) {
+    try {
+      await fetch(`${getGatewayUrl()}/runtime`, {
+        method: 'DELETE',
+        headers: { 'X-User-Id': session.userId },
+      });
+    } catch {
+      /* 销毁失败不阻塞登出, gateway TTL 回收兜底 */
+    }
+  }
+  clearSession();
+}
+
 export function getRedirectTo(): string {
   const params = new URLSearchParams(window.location.search);
   const raw = params.get('redirect_to_url') || '/';
