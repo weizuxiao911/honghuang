@@ -12,13 +12,14 @@ import {
   aiDeleteAllSessions,
   aiListAgents,
   aiSwitchAgent,
+  aiGetTodos,
   aiReplyQuestion,
   aiRejectQuestion,
   aiListModels,
   aiListProviders,
 } from '../../commands/ai/api';
 import { PartRenderer } from './parts/PartRenderer';
-import { extractAssistantTodos } from './parts/TodoCard';
+import { extractAssistantTodos, type TodoItem } from './parts/TodoCard';
 import { ModelPicker } from './parts/ModelPicker';
 import { QuestionModal } from './parts/QuestionModal';
 import { modelPrefs } from '../../commands/ai/modelPrefs';
@@ -215,6 +216,19 @@ export const AiPanel: React.FC = () => {
     } catch (e) { setError(String((e as any)?.message || e)); }
   }, []);
 
+  // todos: 官方协议 — GET /session/{sessionID}/todo 拉取 + SSE todo.updated 实时更新
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const refreshTodos = useCallback(async (sid: string) => {
+    try {
+      const list = await aiGetTodos(sid);
+      setTodos(list.map((t: any) => ({
+        content: String(t?.content || ''),
+        status: t?.status === 'completed' || t?.status === 'in_progress' || t?.status === 'pending' || t?.status === 'cancelled' ? t.status : 'pending',
+        priority: typeof t?.priority === 'string' ? t.priority : undefined,
+      })).filter((t: TodoItem) => t.content.trim().length > 0));
+    } catch { /* 拉取失败保持现状 */ }
+  }, []);
+
   const loadMessages = useCallback(async (sid?: string) => {
     const target = sid || sessionIDRef.current;
     if (!target) { setRows([]); return; }
@@ -229,8 +243,10 @@ export const AiPanel: React.FC = () => {
         };
       });
       setRows(rs);
+      // 会话切换/刷新时同步官方 todo 列表
+      void refreshTodos(target);
     } catch (e) { setError(String((e as any)?.message || e)); }
-  }, []);
+  }, [refreshTodos]);
 
   useEffect(() => {
     if (sessionID) loadMessages(sessionID); else setRows([]);
@@ -387,6 +403,20 @@ export const AiPanel: React.FC = () => {
         case 'session.idle':
           setBusy(false);
           break;
+        case 'todo.updated': {
+          // 官方 todo 协议: props.todos / props.data.todos 实时更新
+          const list = props.todos || props.data?.todos;
+          if (Array.isArray(list)) {
+            setTodos(list.map((t: any) => ({
+              content: String(t?.content || ''),
+              status: t?.status === 'completed' || t?.status === 'in_progress' || t?.status === 'pending' || t?.status === 'cancelled' ? t.status : 'pending',
+              priority: typeof t?.priority === 'string' ? t.priority : undefined,
+            })).filter((t: TodoItem) => t.content.trim().length > 0));
+          } else if (cur) {
+            refreshTodos(cur);
+          }
+          break;
+        }
         case 'session.error':
           setBusy(false);
           setError(props.error?.data?.message || props.error?.message || '会话出错');
@@ -649,10 +679,12 @@ export const AiPanel: React.FC = () => {
   );
 
   const activeTodos = useMemo(() => {
+    if (todos.length > 0) return todos;
+    // 兜底: 官方 todo API 未返回时, 从最近 assistant 消息的 todowrite tool state 解析
     const lastAssistant = [...rows].reverse().find((r) => r.role === 'assistant');
     if (!lastAssistant) return [];
     return findCurrentTodos(lastAssistant.parts || []);
-  }, [rows]);
+  }, [todos, rows]);
 
   // 命令列表 (与 OpenCode 一致)
   const commandList = useMemo(() => [
@@ -922,6 +954,16 @@ export const AiPanel: React.FC = () => {
                 </button>
                 {showAgents && (
                   <div className="tc-ai__agent-pop">
+                    <div className="tc-ai__agent-pop-head">
+                      <span className="tc-ai__agent-pop-title">选择 Agent</span>
+                      <button
+                        type="button"
+                        className="tc-ai__agent-pop-close"
+                        onClick={() => setShowAgents(false)}
+                      >
+                        ✕
+                      </button>
+                    </div>
                     {visibleAgents.map((a: any) => {
                       const id = a.id || a.name;
                       return (
@@ -934,8 +976,13 @@ export const AiPanel: React.FC = () => {
                           <span className="tc-ai__agent-icon">{AGENT_ICONS[id] || '✨'}</span>
                           <span className="tc-ai__agent-body">
                             <span className="tc-ai__agent-name">{a.name || id}</span>
-                            <span className="tc-ai__agent-desc">{AGENT_DESC[id] || a.description || ''}</span>
+                            <span className="tc-ai__agent-desc">{a.description || AGENT_DESC[id] || ''}</span>
                           </span>
+                          {id === currentAgent && (
+                            <span className="tc-ai__agent-check">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -1089,7 +1136,7 @@ const WelcomeScreen: React.FC<{
               >
                 <span className="tc-ai__agent-card-icon">{AGENT_ICONS[id] || '✨'}</span>
                 <span className="tc-ai__agent-card-name">{a.name || id}</span>
-                <span className="tc-ai__agent-card-desc">{AGENT_DESC[id] || a.description || ''}</span>
+                <span className="tc-ai__agent-card-desc">{a.description || AGENT_DESC[id] || ''}</span>
               </button>
             );
           })}
@@ -1600,25 +1647,52 @@ const styles = `
 }
 .tc-ai__mpop-provider-row:hover { background: rgba(255,255,255,0.06); }
 
-  width: 280px; max-height: 360px; overflow-y: auto; z-index: 60;
-  background: #1c1c22;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+/* ========== Agent 选择下拉 (与 ModelPicker 风格统一) ========== */
+.tc-ai__agent-pop {
+  position: absolute; bottom: calc(100% + 8px); left: 0;
+  width: 320px; max-height: 380px; overflow-y: auto;
+  background: #15151a;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.55);
   padding: 6px;
+  z-index: 60;
 }
+.tc-ai__agent-pop-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px 8px;
+}
+.tc-ai__agent-pop-title { font-size: 12px; font-weight: 600; color: var(--editor-foreground); }
+.tc-ai__agent-pop-close {
+  width: 22px; height: 22px;
+  background: transparent; border: none;
+  color: var(--descriptionForeground); font-size: 13px; line-height: 1;
+  cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+}
+.tc-ai__agent-pop-close:hover { background: rgba(255,255,255,0.06); color: var(--editor-foreground); }
 .tc-ai__agent-item {
-  display: flex; align-items: flex-start; gap: 10px;
-  width: 100%; padding: 8px 10px;
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 9px 10px;
   background: transparent; border: none; border-radius: 8px;
   color: var(--editor-foreground); font-family: inherit; text-align: left;
   cursor: pointer;
 }
-.tc-ai__agent-item:hover { background: rgba(255,255,255,0.05); }
-.tc-ai__agent-item.active { background: rgba(99,102,241,0.14); }
-.tc-ai__agent-icon { font-size: 16px; line-height: 1.3; flex-shrink: 0; }
-.tc-ai__agent-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.tc-ai__agent-name { font-size: 12px; font-weight: 600; }
-.tc-ai__agent-desc { font-size: 10.5px; color: var(--descriptionForeground); line-height: 1.4; }
+.tc-ai__agent-item:hover { background: rgba(255,255,255,0.06); }
+.tc-ai__agent-item.active { background: rgba(99,102,241,0.18); }
+.tc-ai__agent-item.active .tc-ai__agent-name { color: #c7d2fe; }
+.tc-ai__agent-icon {
+  width: 28px; height: 28px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 7px;
+}
+.tc-ai__agent-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.tc-ai__agent-name { font-size: 12.5px; font-weight: 600; }
+.tc-ai__agent-desc { font-size: 11px; color: var(--descriptionForeground); line-height: 1.4; }
+.tc-ai__agent-check { flex-shrink: 0; color: #a5b4fc; display: inline-flex; }
 
 /* ========== Tool call card (OpenCode style) ========== */
 .tc-tool {

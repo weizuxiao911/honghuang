@@ -128,8 +128,17 @@ export async function aiListAgents(): Promise<any[]> {
 export async function aiSwitchAgent(sessionID: string, agent: string): Promise<void> {
   assertAiReady();
   const client = getAiClient()!;
-  const { error } = await (client as any).session.switchAgent({ sessionID, agent });
+  const { error } = await (client as any).v2.session.switchAgent({ sessionID, agent });
   if (error) throw error;
+}
+
+/** 会话 todo 列表 — v2.session.todo (GET /session/{sessionID}/todo), 官方协议 */
+export async function aiGetTodos(sessionID: string): Promise<any[]> {
+  assertAiReady();
+  const client = getAiClient()!;
+  const { data, error } = await (client as any).v2.session.todo({ sessionID });
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
 }
 
 /** 回答 A2UI question — client.question.reply({ requestID, answers }) (v1 路径) */
