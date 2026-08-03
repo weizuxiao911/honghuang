@@ -15,6 +15,8 @@ import { FsCommandsModule, installFsApi, bindFsSync } from './commands/fs';
 import { AiModule } from './components/ai';
 import { AiCommandsModule } from './commands/ai';
 import { RightBarModule, BottomModule } from './components/layout';
+import { TerminalModule } from './commands/terminal';
+import { TerminalNextModule } from '@opensumi/ide-terminal-next/lib/browser';
 import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';
 import './styles/overrides.css';
@@ -60,6 +62,8 @@ export const App: React.FC = () => {
           FsCommandsModule,
           AiModule,
           AiCommandsModule,
+          TerminalNextModule,
+          TerminalModule,
           BottomModule,
           RightBarModule,
         ],

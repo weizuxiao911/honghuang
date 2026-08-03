@@ -59,7 +59,8 @@ export const slots: Pick<IAppRendererProps['appConfig'], 'workspaceDir' | 'layou
     },
     [SlotLocation.bottom]: {
       modules: [
-        'tc-problems'
+        'tc-problems',
+        '@opensumi/ide-terminal-next',
       ]
     },
     [SlotLocation.extra]: {
