@@ -32,17 +32,17 @@ public class RuntimeSnapshot {
     private String namespace;
 
     /**
-     * Deployment 名称 (例: gateway-rt-{userId}-{suffix}).
+     * Deployment 名称 (例: runtime-rt-{userId}-{suffix}).
      */
     private String deploymentName;
 
     /**
-     * Service 名称 (例: gateway-rt-{userId}-{suffix}).
+     * Service 名称 (例: runtime-rt-{userId}-{suffix}).
      */
     private String serviceName;
 
     /**
-     * 服务内网访问地址 (例: http://gateway-rt-{userId}-{suffix}.taichu-runtime.svc.cluster.local).
+     * 服务内网访问地址 (例: http://runtime-rt-{userId}-{suffix}.taichu-runtime.svc.cluster.local).
      */
     private String internalUrl;
 

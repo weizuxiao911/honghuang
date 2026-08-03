@@ -40,12 +40,12 @@ public class RuntimeRecycler {
     /**
      * 按 runtimeId 回收运行时.
      * 过期事件只携带 key 名 (快照已随 TTL 删除), 故按命名规则重建最小快照:
-     * deploymentName = "gateway-" + runtimeId, serviceName 同 (与 RuntimeService.createNew 一致).
+     * deploymentName = "runtime-" + runtimeId, serviceName 同 (与 RuntimeService.createNew 一致).
      * userId 从 K8s Deployment env (X_USER_ID) 反查, 仅用于 RECYCLED 事件广播; 查不到时跳过事件.
      */
     public Mono<Void> recycle(String runtimeId) {
         String namespace = gatewayProperties.getKubernetes().getNamespace();
-        String deploymentName = "gateway-" + runtimeId;
+        String deploymentName = "runtime-" + runtimeId;
 
         RuntimeSnapshot snapshot = new RuntimeSnapshot();
         snapshot.setRuntimeId(runtimeId);

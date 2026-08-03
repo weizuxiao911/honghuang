@@ -89,8 +89,8 @@ public class RuntimeService {
      */
     private Mono<RuntimeSnapshot> createNew(String userId) {
         String runtimeId = generateRuntimeId(userId);
-        String deploymentName = "gateway-" + runtimeId;
-        String serviceName = "gateway-" + runtimeId;
+        String deploymentName = "runtime-" + runtimeId;
+        String serviceName = "runtime-" + runtimeId;
         String internalUrl = buildInternalUrl(serviceName);
         String agentApiBase = buildAgentApiBase(runtimeId);
 
