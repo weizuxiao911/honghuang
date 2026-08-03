@@ -31,19 +31,19 @@ import { SandboxLoading } from './fs/SandboxLoading';
 export function LayoutComponent(): React.ReactElement {
   const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
 
-  // 左侧栏固定默认宽度 286 (每次启动强制, 覆盖 OpenSumi 缓存/内置 310)
   // 右侧 AI 面板固定默认宽度 438
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        const left = layoutService.getTabbarService(SlotLocation.left);
-        left.resizeHandle?.setSize(286);
+        const right = layoutService.getTabbarService(SlotLocation.right);
+        right.resizeHandle?.setSize(438);
       } catch {
         /* ignore */
       }
+      // 左侧栏默认收起内容 (activity bar icon 栏保留):
+      // 未登录/初次进入不暴露沙箱文件树, 用户点击 icon 或 TopBar 按钮可展开
       try {
-        const right = layoutService.getTabbarService(SlotLocation.right);
-        right.resizeHandle?.setSize(438);
+        layoutService.toggleSlot(SlotLocation.left, false);
       } catch {
         /* ignore */
       }

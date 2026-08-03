@@ -91,7 +91,8 @@ const BottomIcon = ({ filled }: { filled: boolean }) => (
 
 export const TopBar: React.FC = () => {
   const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
-  const [leftVisible, setLeftVisible] = useState<boolean>(true);
+  // 左侧栏默认不渲染 (layout.tsx 移除 left SlotRenderer), 按钮初始收起
+  const [leftVisible, setLeftVisible] = useState<boolean>(false);
   const [rightVisible, setRightVisible] = useState<boolean>(true);
   const [bottomVisible, setBottomVisible] = useState<boolean>(true);
   const [session, setSession] = useState<LoginSession | null>(null);
