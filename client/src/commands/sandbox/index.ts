@@ -98,12 +98,23 @@ export class OpencodeCommandsModule extends BrowserModule {
   contributionProvider = [CommandContribution, ClientAppContribution];
 }
 
-// 重新导出供 commands/fs 引用 (getFsClient = getOpencodeClient 别名)
+// sandbox 命名别名 (原 opencode 命名, 语义为沙箱)
+export { OpencodeCommandsModule as SandboxCommandsModule };
+
+// 重新导出供 sandbox/fs 引用 (getFsClient = getOpencodeClient 别名)
 export {
   getOpencodeClient,
   isOpencodeReady,
   installOpencodeClient,
   disposeOpencodeClient,
+} from './client';
+
+// sandbox 命名别名 (原 opencode 命名, 语义为沙箱)
+export {
+  getOpencodeClient as getSandboxClient,
+  isOpencodeReady as isSandboxReady,
+  installOpencodeClient as installSandboxClient,
+  disposeOpencodeClient as disposeSandboxClient,
 } from './client';
 
 export {

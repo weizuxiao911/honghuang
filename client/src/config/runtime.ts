@@ -35,8 +35,8 @@ async function sandboxList(path: string): Promise<Array<[string, number]>> {
   const fsApi = (window as any).__TAICHU_FS_API__;
   if (!fsApi?.isReady?.()) return [];
   try {
-    const names: string[] = await fsApi.list(toSandboxPath(path));
-    return (names || []).map((name) => [name, FILE_TYPE_FILE] as [string, number]);
+    const entries: Array<{ name: string; type?: number }> = await fsApi.list(toSandboxPath(path));
+    return (entries || []).map((e) => [e.name, e.type === 2 ? FILE_TYPE_DIR : FILE_TYPE_FILE] as [string, number]);
   } catch {
     return [];
   }

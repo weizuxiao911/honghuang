@@ -198,3 +198,26 @@
   height: 0 !important;
   overflow: hidden !important;
 }
+
+/* 右侧栏不要竖 icon 栏 (VS Code activity bar 风格不需要) —
+   右栏用自定义渲染 (面板 + tab 横条), 竖 icon 栏整列隐藏 */
+[class*="opensumi-right-tabbar"],
+[class*="right-tabbar"],
+[class*="right_tab_bar"],
+[class*="right_bar"] {
+  display: none !important;
+}
+
+/* 隐藏 right 面板 OpenSumi 自带标题条 ("AI 助手" h1) — AiPanel 自带顶栏 */
+[class*="right_slot___"] [class*="titlebar___"],
+[class*="design_right_slot"] [class*="titlebar___"] {
+  display: none !important;
+}
+
+/* loading / toast 槽位容器: fixed overlay 自管显隐, 容器占位会撑高 root
+   (2430=3×810) 触发滚动 → 底部空白。与 login/user 同样 height:0 */
+.codeblitz-root > .resize-wrapper:has(.tc-loading-root),
+.codeblitz-root > .resize-wrapper:has(.tc-toast-root) {
+  height: 0 !important;
+  overflow: hidden !important;
+}

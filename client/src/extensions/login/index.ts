@@ -3,7 +3,7 @@ import { Domain } from '@opensumi/ide-core-common';
 import { BrowserModule } from '@opensumi/ide-core-browser';
 import { ComponentContribution, ComponentRegistry } from '@opensumi/ide-core-browser/lib/layout';
 
-import { LoginView } from './LoginView';
+import { LoginView } from './webview/LoginView';
 
 /**
  * login 槽位 webview 实现 (components/login/)

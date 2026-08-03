@@ -3,7 +3,7 @@ import { Domain } from '@opensumi/ide-core-common';
 import { BrowserModule } from '@opensumi/ide-core-browser';
 import { ComponentContribution, ComponentRegistry } from '@opensumi/ide-core-browser/lib/layout';
 
-import { UserView } from './UserView';
+import { UserView } from './webview/UserView';
 
 /**
  * userPage 槽位实现 — 与 login 槽位平行, 走 OpenSumi 标准槽位机制

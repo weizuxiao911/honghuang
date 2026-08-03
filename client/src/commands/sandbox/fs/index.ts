@@ -1,6 +1,8 @@
-import { Injectable } from '@opensumi/di';
-import { Domain, CommandContribution, CommandRegistry } from '@opensumi/ide-core-common';
-import { BrowserModule } from '@opensumi/ide-core-browser';
+import { Injectable, Autowired } from '@opensumi/di';
+import { Domain, CommandContribution, CommandRegistry, URI } from '@opensumi/ide-core-common';
+import { BrowserModule, ClientAppContribution } from '@opensumi/ide-core-browser';
+import { IFileTreeService } from '@opensumi/ide-file-tree-next/lib/common';
+import { IWorkspaceService } from '@opensumi/ide-workspace/lib/common';
 
 import { assertFsReady, getFsClient } from './api';
 
@@ -37,7 +39,7 @@ const SHELL_TIMEOUT_MS = 30000;
  *   2. WebSocket 直连 ws://{base}/pty/{ptyID}/connect?directory=... → 实时收输出
  *   3. 命令跑完 (pty get status=exited) → pty.remove 清理
  */
-async function runShell(command: string): Promise<string> {
+export async function runShell(command: string): Promise<string> {
   const client = getFsClient()!;
   const runtime = (window as any).__TAICHU_OPENCODE_RUNTIME__;
   if (!runtime?.baseUrl) throw new Error('runtime not ready');
@@ -193,10 +195,11 @@ export class FsCommandsContribution implements CommandContribution {
     commands.registerCommand(
       { id: FS_CMD.WRITE },
       {
-        execute: async (path: string, content: string) => {
+        execute: async (path: string, content: string | Uint8Array) => {
           assertFsReady();
           const escapedPath = path.replace(/'/g, "'\\''");
-          // 用 printf 写入: heredoc 在 bash tool 里不落盘, printf + base64 最稳
+          // Uint8Array 直接 base64 编码后落盘 (二进制图片/PDF 安全);
+          // string 按 UTF-8 字节写入 (代码/文本)
           const b64 = bytesToBase64(content);
           const script = `printf '%s' '${b64}' | base64 -d > '${escapedPath}'`;
           await runShell(script);
@@ -228,11 +231,16 @@ export function installFsApi(): void {
     isReady: () => !!getFsClient(),
     list: async (path: string) => {
       assertFsReady();
+      // 列目录走 SDK v2.fs.list (裸 fetch /file?path= 的 query 解析有问题 400)
       const client = getFsClient()!;
       const { data, error } = await (client as any).v2.fs.list({ path });
       if (error) throw error;
       const list: any[] = Array.isArray(data) ? data : (data?.data || []);
-      return list.map((e) => String(e.path || e.name || e)).filter(Boolean);
+      // 返回 {name, type} (1 文件 / 2 目录), 供 DynamicRequest 区分目录
+      return list.map((e) => ({
+        name: String(e.path ?? e.name ?? e),
+        type: e.type === 'directory' ? 2 : 1,
+      })).filter((e) => e.name.length > 0);
     },
     read: async (path: string) => {
       assertFsReady();
@@ -249,6 +257,12 @@ export function installFsApi(): void {
     find: async (path: string, pattern = '*') => {
       assertFsReady();
       return parseFindLines(await runShell(`find '${path}' -maxdepth 4 -name '${pattern}'`), path);
+    },
+    delete: async (path: string) => {
+      assertFsReady();
+      const escapedPath = path.replace(/'/g, "'\\''");
+      await runShell(`rm -rf '${escapedPath}'`);
+      return true;
     },
   };
 }
@@ -294,9 +308,71 @@ export function bindFsSync(): () => void {
 
 @Injectable()
 export class FsCommandsModule extends BrowserModule {
-  providers = [FsCommandsContribution];
+  providers = [FsCommandsContribution, FsExplorerRefreshContribution];
 
-  contributionProvider = CommandContribution;
+  contributionProvider = [CommandContribution, ClientAppContribution];
+}
+
+/**
+ * 登出后清空文件树: teardownRuntime → taichu:fs-teardown →
+ * 移除 workspace roots + 重置 workspace (explorer 不再显示旧沙箱文件)
+ */
+@Injectable()
+@Domain(ClientAppContribution)
+export class FsExplorerRefreshContribution implements ClientAppContribution {
+  @Autowired(IFileTreeService)
+  private fileTreeService: IFileTreeService;
+
+  @Autowired(IWorkspaceService)
+  private workspaceService: IWorkspaceService;
+
+  onStart(): void {
+    // 登录后沙箱就绪 → 文件树重新加载 (显示沙箱文件)
+    // fs-ready 瞬间沙箱 /file 接口可能未完全可用, 延迟 + 重试直到 readDirectory 有内容
+    // 不手动 setWorkspace (CodeBlitz 自动初始化 workspace root, 手动设会挂错路径)
+    window.addEventListener('taichu:fs-ready', () => {
+      const reload = () => {
+        try {
+          this.fileTreeService.refresh();
+        } catch {
+          /* ignore */
+        }
+      };
+      // 首次延迟 1.5s (等沙箱文件接口稳定), 再补一次 3s 兜底
+      setTimeout(reload, 1500);
+      setTimeout(reload, 3500);
+    });
+
+    window.addEventListener('taichu:fs-teardown', () => {
+      // 登出: 清空 browserfs (浏览器文件系统数据, 文件树数据源) —
+      // 本地创建的缓存文件一并删除, 下次登录从沙箱重新同步
+      try {
+        const req = indexedDB.open('browserfs');
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction('browserfs', 'readwrite');
+          tx.objectStore('browserfs').clear();
+          tx.oncomplete = () => db.close();
+        };
+      } catch {
+        /* ignore */
+      }
+      try {
+        const roots = this.workspaceService.tryGetRoots();
+        if (roots.length > 0) {
+          void this.workspaceService.removeRoots(roots.map((r) => new URI(r.uri)));
+        }
+        void this.workspaceService.setWorkspace(undefined);
+      } catch {
+        /* ignore */
+      }
+      try {
+        this.fileTreeService.refresh();
+      } catch {
+        /* ignore */
+      }
+    });
+  }
 }
 
 /** Uint8Array / string → base64 (浏览器) */

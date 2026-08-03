@@ -65,7 +65,8 @@ export class AiCommandsContribution implements CommandContribution {
     );
     commands.registerCommand(
       { id: AI_CMD.MESSAGE_SEND },
-      { execute: (sessionID: string, text: string) => aiSendMessage(sessionID, text) }
+      { execute: (sessionID: string, textOrParts: string | any[], agent?: string, model?: { providerID: string; modelID: string }, variant?: string) =>
+        aiSendMessage(sessionID, textOrParts, agent, model, variant) }
     );
     commands.registerCommand(
       { id: AI_CMD.MESSAGE_ABORT },

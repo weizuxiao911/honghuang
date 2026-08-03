@@ -5,6 +5,7 @@ import {
   ITerminalServiceClient,
   ITerminalServicePath,
   ITerminalService,
+  ITerminalController,
   type IShellLaunchConfig,
 } from '@opensumi/ide-terminal-next/lib/common';
 
@@ -41,6 +42,50 @@ export class OpenCodePtyService implements ITerminalServiceClient {
 
   constructor() {
     OpenCodePtyService.instance = this;
+    this.startResizeWatcher();
+  }
+
+  /**
+   * 修复窗口 resize 后 xterm 卡死: OpenSumi 终端只在面板拖拽时 fit,
+   * 浏览器窗口 resize 不触发 → xterm canvas 尺寸错乱。
+   * 监听 window resize + 轮询, 容器稳定且 canvas 与容器不匹配时
+   * 调 TerminalClient._layout() 重新 fit (触发 pty.update 同步 bash 尺寸)。
+   */
+  private startResizeWatcher(): void {
+    let timer: number | undefined;
+    const check = () => {
+      try {
+        const controller: any = this.injector.get(ITerminalController);
+        const client: any = controller?.activeClient;
+        const raw: any = client?.xterm?.raw;
+        const el: any = raw?.element;
+        if (!raw || !el) return;
+        const cw = el.clientWidth || el.getBoundingClientRect().width;
+        const ch = el.clientHeight || el.getBoundingClientRect().height;
+        if (cw <= 60 || ch <= 10) return;
+        const canvas: any = [...(el.querySelectorAll('canvas') || [])].find(
+          (c: any) => !c.className || !String(c.className).includes('decoration'),
+        );
+        if (!canvas) return;
+        const dpr = window.devicePixelRatio || 1;
+        const cellW = canvas.width / (raw.cols * dpr);
+        const cellH = canvas.height / (raw.rows * dpr);
+        if (!cellW || !cellH || cellW <= 0.5 || cellH <= 0.5) return;
+        const cols = Math.max(2, Math.floor(cw / cellW));
+        const rows = Math.max(1, Math.floor(ch / cellH));
+        if (cols !== raw.cols || rows !== raw.rows) {
+          client?._layout?.();
+        }
+      } catch {
+        // ignore
+      }
+    };
+    // 连续 resize (拖拽窗口) 时合并到窗口末尾执行一次
+    window.addEventListener('resize', () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(check, 200);
+    });
+    window.setInterval(check, 1000);
   }
 
   /** 懒获取 NodePtyTerminalService (避免循环注入) */

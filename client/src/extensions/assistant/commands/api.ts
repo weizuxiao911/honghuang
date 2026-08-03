@@ -9,7 +9,7 @@
  * 映射到 body, sessionID 等映射到 path.
  */
 
-import { getOpencodeClient, isOpencodeReady } from '../opencode/client';
+import { getOpencodeClient, isOpencodeReady } from '../../../commands/sandbox/client';
 
 export function getAiClient() {
   return getOpencodeClient();
@@ -60,14 +60,28 @@ export async function aiListMessages(sessionID: string): Promise<any[]> {
   return [];
 }
 
-/** 发送消息 — v2 SDK 顶层 session.promptAsync (v1 兼容协议, v2 SDK 自带) */
-export async function aiSendMessage(sessionID: string, text: string): Promise<void> {
+/** 发送消息 — v2.session.prompt (fire-and-forget, 官方 TUI 同款);
+ *  必须传 agent + model ({providerID, modelID}) + variant, 否则服务端 400 */
+/** 发送消息 — client.session.prompt (v1 兼容, 官方 TUI + app 统一用此端点);
+ *  agent/model/variant 全部可选, 传则服务端按指定 agent/model 处理
+ *  textOrParts: 字符串 (纯文本) 或 parts 数组 (官方 file part 等多 part 提交) */
+export async function aiSendMessage(
+  sessionID: string,
+  textOrParts: string | any[],
+  agent?: string,
+  model?: { providerID: string; modelID: string },
+  variant?: string,
+): Promise<void> {
   assertAiReady();
   const client = getAiClient()!;
-  const { error } = await (client as any).session.promptAsync({
-    sessionID,
-    parts: [{ type: 'text', text }],
-  });
+  const parts: any[] = typeof textOrParts === 'string'
+    ? [{ type: 'text', text: textOrParts }]
+    : textOrParts;
+  const params: any = { sessionID, parts };
+  if (agent) params.agent = agent;
+  if (model) params.model = model;
+  if (variant) params.variant = variant;
+  const { error } = await (client as any).session.prompt(params);
   if (error) throw error;
 }
 

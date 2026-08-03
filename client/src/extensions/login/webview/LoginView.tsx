@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { readSession, writeSession, installLoginApi } from '../../commands/login/api';
+import { readSession, writeSession, installLoginApi } from '../../../commands/login/api';
 
 /**
  * login 槽位默认 view — client 内置默认登录交互 (用户名/密码 mock)

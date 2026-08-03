@@ -118,6 +118,8 @@ export function installOpencodeClient(): () => void {
         console.warn('[opencode] warmup timeout after 30s, dispatching ready anyway');
       }
       window.dispatchEvent(new CustomEvent('taichu:opencode-ready'));
+      // 沙箱加载完成 (opencode 探活通过, SDK 可访问) — 业务拓展 (assistant 等) 监听此事件
+      window.dispatchEvent(new CustomEvent('taichu:sandbox-ready'));
     } finally {
       warmupInFlight = false;
     }

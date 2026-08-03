@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { modelPrefs } from '../../../commands/ai/modelPrefs';
+import { modelPrefs } from '../../commands/modelPrefs';
 
 interface ModelInfo {
   id: string;

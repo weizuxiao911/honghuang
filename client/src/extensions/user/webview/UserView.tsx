@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { logout } from '../../commands/login/api';
+import { logout } from '../../../commands/login/api';
 
 /**
  * userPage 槽位默认 view — client 内置用户信息卡片 (右上角浮动弹窗)

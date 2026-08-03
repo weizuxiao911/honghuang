@@ -17,12 +17,13 @@ import {
   aiRejectQuestion,
   aiListModels,
   aiListProviders,
-} from '../../commands/ai/api';
+} from '../commands/api';
+import { readSession } from '../../../commands/login/api';
 import { PartRenderer } from './parts/PartRenderer';
 import { extractAssistantTodos, type TodoItem } from './parts/TodoCard';
 import { ModelPicker } from './parts/ModelPicker';
 import { QuestionModal } from './parts/QuestionModal';
-import { modelPrefs } from '../../commands/ai/modelPrefs';
+import { modelPrefs } from '../commands/modelPrefs';
 
 interface Row {
   id: string;
@@ -132,12 +133,23 @@ export const AiPanel: React.FC = () => {
     };
   }, []);
 
-  // 加载 agent/model 列表
+  // 加载 agent/model 列表 (失败自动重试, 沙箱刚就绪时可能不完全可用;
+  // 冷启动/刷新时未登录不加载 — 登录后 ready+loggedIn 才拉取)
+  const [loggedIn, setLoggedIn] = useState<boolean>(() => !!readSession()?.userId);
   useEffect(() => {
-    if (!ready) return;
-    (async () => {
+    const update = () => setLoggedIn(!!readSession()?.userId);
+    window.addEventListener('taichu:login-session-changed', update);
+    return () => window.removeEventListener('taichu:login-session-changed', update);
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !loggedIn) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const attempt = async () => {
       try {
         const list = await aiListAgents();
+        if (cancelled) return;
         setAgents(list || []);
         if (list?.length) {
           const first = list.find((a: any) => {
@@ -149,13 +161,17 @@ export const AiPanel: React.FC = () => {
             setCurrentAgent(first.id || first.name);
           }
         }
-      } catch (e) { console.warn('[ai] load agents failed', e); }
+      } catch (e) {
+        console.warn('[ai] load agents failed', e);
+        if (!cancelled) timer = setTimeout(attempt, 2000);
+        return;
+      }
       try {
         const m = await aiListModels();
+        if (cancelled) return;
         setModels(m || []);
         if (m?.length) {
           const prefs = modelPrefs.get();
-          // 优先: 用户配置的默认 → 当前选 → 第一个
           const def = prefs.default && m.find((x: any) => x.id === prefs.default);
           if (def) {
             setCurrentModel(def.id);
@@ -163,14 +179,30 @@ export const AiPanel: React.FC = () => {
             setCurrentModel(m[0].id);
           }
         }
-      } catch (e) { console.warn('[ai] load models failed', e); }
+      } catch (e) {
+        console.warn('[ai] load models failed', e);
+        if (!cancelled) timer = setTimeout(attempt, 2000);
+        return;
+      }
       try {
         const ps = await aiListProviders();
-        setProviders(ps || []);
+        if (!cancelled) setProviders(ps || []);
       } catch (e) { console.warn('[ai] load providers failed', e); }
-    })();
+    };
+    void attempt();
+    // 沙箱加载完成事件 (opencode 探活通过) → 立即重新拉取 agent/model
+    const onSandboxReady = () => {
+      if (timer) clearTimeout(timer);
+      void attempt();
+    };
+    window.addEventListener('taichu:sandbox-ready', onSandboxReady);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('taichu:sandbox-ready', onSandboxReady);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
+  }, [ready, loggedIn]);
 
   useEffect(() => {
     const onReveal = () => setTimeout(() => taRef.current?.focus(), 120);
