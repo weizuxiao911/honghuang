@@ -56,8 +56,16 @@ export function findTodosInPart(part: any): TodoItem[] {
 }
 
 export const TodoCard: React.FC<{ part: any }> = ({ part }) => {
-  const todos = useMemo(() => findTodosInPart(part), [part]);
+  const todos = useMemo(() => {
+    // 官方 (packages/web part.tsx TodoWriteTool): state.input.todos, 排序 in_progress→pending→completed
+    const priority: Record<string, number> = { in_progress: 0, pending: 1, completed: 2 };
+    const raw = findTodosInPart(part);
+    return [...raw].sort((a, b) => priority[a.status] - priority[b.status]);
+  }, [part]);
   const toolStatus: string = part?.state?.status || 'pending';
+  const starting = todos.length > 0 && todos.every((t) => t.status === 'pending');
+  const finished = todos.length > 0 && todos.every((t) => t.status === 'completed');
+  const title = finished ? '完成计划' : starting ? '创建计划' : '更新计划';
   const stats = useMemo(() => {
     let total = todos.length, completed = 0, inProgress = 0;
     for (const t of todos) {
@@ -83,7 +91,7 @@ export const TodoCard: React.FC<{ part: any }> = ({ part }) => {
           {toolStatus === 'completed' ? '✓' : toolStatus === 'running' ? '◐' : '○'}
         </span>
         <span className="tc-todo__title">
-          {`任务规划 ${stats.completed}/${stats.total}`}
+          {`${title} ${stats.completed}/${stats.total}`}
           {stats.inProgress > 0 ? ` · ${stats.inProgress} 进行中` : ''}
         </span>
       </div>

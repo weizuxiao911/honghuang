@@ -31,7 +31,7 @@ export const PartRenderer: React.FC<{
     case 'text': {
       const text = String(part.text || '');
       if (!text) return null;
-      return <Markdown content={text} streaming={streaming} />;
+      return <Markdown content={text} streaming={streaming} expand={streaming} />;
     }
     case 'reasoning':
       return <ReasoningView part={part} streaming={streaming} />;
