@@ -1,36 +1,69 @@
 {
-  "name": "yunyan-vscode-paper",
-  "displayName": "Yunyan Paper Plugin (Web)",
-  "description": "Yunyan 题目插件（浏览器兼容版）：.paper 文件的自定义编辑器，用 VSCode 标准扩展契约实现，无 Node 依赖。",
-  "version": "0.0.2",
-  "publisher": "yunyan",
-  "engines": {
-    "vscode": "^1.60.0"
-  },
-  "categories": ["Other"],
-  "activationEvents": [
-    "onCustomEditor:yunyan.paperEditor"
-  ],
-  "browser": "./out/extension.js",
-  "contributes": {
-    "customEditors": [
-      {
-        "viewType": "yunyan.paperEditor",
-        "displayName": "Yunyan Paper Viewer",
-        "selector": [
-          { "filenamePattern": "*.paper" }
+    "name": "yunyan-vscode-paper",
+    "displayName": "Yunyan Paper Plugin",
+    "description": "Yunyan 题目插件，支持题目预览、加入题库和存入试卷库。",
+    "version": "0.0.2",
+    "publisher": "yunyan",
+    "engines": {
+        "vscode": "^1.95.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onCustomEditor:yunyan.paperEditor"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "customEditors": [
+            {
+                "viewType": "yunyan.paperEditor",
+                "displayName": "Yunyan Paper Viewer",
+                "selector": [
+                    {
+                        "filenamePattern": "*.paper"
+                    }
+                ],
+                "priority": "default"
+            }
         ],
-        "priority": "default"
-      }
-    ]
-  },
-  "scripts": {
-    "build": "node scripts/build.js",
-    "package": "node scripts/build.js && vsce package --no-dependencies --allow-missing-repository --allow-star-activation"
-  },
-  "devDependencies": {
-    "@vscode/vsce": "^3.9.2",
-    "esbuild": "^0.21.0",
-    "typescript": "^5.5.4"
-  }
+        "commands": [
+            {
+                "command": "yunyan.paper.saveToLibrary",
+                "title": "存入试卷库",
+                "category": "Paper",
+                "icon": "$(save)"
+            }
+        ],
+        "menus": {
+            "editor/title": [
+                {
+                    "command": "yunyan.paper.saveToLibrary",
+                    "when": "editorLangId == yunyan.paperEditor || resourceExtname == .paper",
+                    "group": "navigation"
+                }
+            ]
+        }
+    },
+    "scripts": {
+        "compile": "tsc -p .",
+        "compile:bundle": "node esbuild.config.mjs",
+        "clean": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\"",
+        "build:webview": "npm --prefix webview run build",
+        "build": "npm run clean && npm run build:webview && npm run compile:bundle",
+        "watch": "tsc -w -p ."
+    },
+    "dependencies": {
+        "js-yaml": "^5.2.1",
+        "markdown-it": "^14.1.0"
+    },
+    "devDependencies": {
+        "@types/js-yaml": "^4.0.9",
+        "@types/markdown-it": "^14.1.2",
+        "@types/node": "^22.10.1",
+        "@types/vscode": "^1.95.0",
+        "@vscode/vsce": "^3.9.2",
+        "esbuild": "^0.28.1",
+        "typescript": "^5.7.2"
+    }
 }

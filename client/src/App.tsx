@@ -34,6 +34,8 @@ export const App: React.FC = () => {
       appConfig={{
         ...slots,
         defaultPreferences: preferences,
+        // 业务 VSIX 元数据 (启动期 registry 拉取填充, CodeBlitz 动态安装)
+        extensionMetadata: (window as any).__TAICHU_REGISTRY_METADATA__ || [],
         modules: [
           LoginCommandsModule,
           SandboxCommandsModule,
