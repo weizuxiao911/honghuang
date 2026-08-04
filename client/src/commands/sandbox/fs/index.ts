@@ -284,6 +284,9 @@ export function bindFsSync(): () => void {
       if (cancelled) return;
       console.info('[fs] sandbox sync OK, /workspace entries:', (files as string[])?.length ?? 0);
       window.dispatchEvent(new CustomEvent('taichu:fs-sync-ok', { detail: { files } }));
+      // 远程沙箱文件列表已获取 + 前端 fs (DynamicRequest/OverlayFS) 可访问
+      // → loading 可以关闭 (保证内容加载时序: 沙箱访问 + list + fs 挂载)
+      window.dispatchEvent(new CustomEvent('taichu:fs-list-ready', { detail: { entries: files?.length ?? 0 } }));
       attempt = 0;
     } catch (err) {
       if (cancelled) return;

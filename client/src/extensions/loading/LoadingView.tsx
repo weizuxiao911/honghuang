@@ -3,11 +3,11 @@ import React, { useState, useEffect, useRef } from 'react';
 /**
  * LoadingView — 沙箱加载 overlay (extensions/loading/)
  *
- * 登录后到沙箱 opencode 正常访问之间显示全屏 loading, 带读秒计时
- * (直观感知冷启动耗时):
- *   - 'taichu:fs-loading'     → 显示 + 开始计时
- *   - 'taichu:opencode-ready' → 隐藏 (探活通过, SDK 可访问)
- *   - 'taichu:fs-teardown'    → 隐藏 (登出/沙箱失效)
+ * 登录后到"远程沙箱文件列表已获取 + 前端 fs 挂载完成"之间显示全屏 loading,
+ * 带读秒计时 (直观感知冷启动耗时). 保证内容加载时序:
+ *   - 'taichu:fs-loading'      → 显示 + 开始计时
+ *   - 'taichu:fs-list-ready'   → 隐藏 (沙箱访问 + 文件列表 + fs 挂载完成)
+ *   - 'taichu:fs-teardown'     → 隐藏 (登出/沙箱失效)
  */
 export const LoadingView: React.FC = () => {
   const [visible, setVisible] = useState(false);
@@ -32,11 +32,11 @@ export const LoadingView: React.FC = () => {
       timerRef.current = null;
     };
     window.addEventListener('taichu:fs-loading', onLoading);
-    window.addEventListener('taichu:opencode-ready', onReady);
+    window.addEventListener('taichu:fs-list-ready', onReady);
     window.addEventListener('taichu:fs-teardown', onTeardown);
     return () => {
       window.removeEventListener('taichu:fs-loading', onLoading);
-      window.removeEventListener('taichu:opencode-ready', onReady);
+      window.removeEventListener('taichu:fs-list-ready', onReady);
       window.removeEventListener('taichu:fs-teardown', onTeardown);
       if (timerRef.current) clearInterval(timerRef.current);
     };
