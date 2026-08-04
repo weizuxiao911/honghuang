@@ -9,7 +9,7 @@
  * 映射到 body, sessionID 等映射到 path.
  */
 
-import { getOpencodeClient, isOpencodeReady } from '../../../commands/sandbox/client';
+import { getOpencodeClient, isOpencodeReady, waitForOpencodeReady } from '../../../commands/sandbox/client';
 
 export function getAiClient() {
   return getOpencodeClient();
@@ -17,6 +17,11 @@ export function getAiClient() {
 
 export function isAiReady(): boolean {
   return isOpencodeReady();
+}
+
+export async function waitForAiReady(timeoutMs = 8000): Promise<void> {
+  // 等 SDK client 就绪 (沙箱/SDK 重连期间不立即抛错)
+  return waitForOpencodeReady(timeoutMs);
 }
 
 export function assertAiReady(): void {
@@ -27,7 +32,7 @@ export function assertAiReady(): void {
 
 /** 创建新会话 — v2.session.create({ agent?, model?, location? }) */
 export async function aiCreateSession(title?: string): Promise<string> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const params: any = {};
   if (title) params.id = title;
@@ -39,7 +44,7 @@ export async function aiCreateSession(title?: string): Promise<string> {
 
 /** 历史会话列表 — v2.session.list */
 export async function aiListSessions(): Promise<any[]> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { data, error } = await (client as any).session.list();
   if (error) throw error;
@@ -50,7 +55,7 @@ export async function aiListSessions(): Promise<any[]> {
 
 /** 会话消息列表 — v2.session.messages({ sessionID }) */
 export async function aiListMessages(sessionID: string): Promise<any[]> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { data, error } = await (client as any).session.messages({ sessionID });
   if (error) throw error;
@@ -72,7 +77,7 @@ export async function aiSendMessage(
   model?: { providerID: string; modelID: string },
   variant?: string,
 ): Promise<void> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const parts: any[] = typeof textOrParts === 'string'
     ? [{ type: 'text', text: textOrParts }]
@@ -87,7 +92,7 @@ export async function aiSendMessage(
 
 /** 中断当前会话 — v2.session.interrupt({ sessionID }) */
 export async function aiAbort(sessionID: string): Promise<void> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { error } = await (client as any).session.abort({ sessionID });
   if (error) throw error;
@@ -95,7 +100,7 @@ export async function aiAbort(sessionID: string): Promise<void> {
 
 /** 删除会话 — client.session.delete({ sessionID }) */
 export async function aiDeleteSession(sessionID: string): Promise<void> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { error } = await (client as any).session.delete({ sessionID });
   if (error) throw error;
@@ -103,7 +108,7 @@ export async function aiDeleteSession(sessionID: string): Promise<void> {
 
 /** 删除全部会话 — 分页遍历删除, 直到全部删完 */
 export async function aiDeleteAllSessions(): Promise<number> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   let deleted = 0;
   let cursor: string | undefined;
@@ -129,7 +134,7 @@ export async function aiDeleteAllSessions(): Promise<number> {
 
 /** 会话内 agent 列表 — v2.agent.list */
 export async function aiListAgents(): Promise<any[]> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { data, error } = await (client as any).v2.agent.list();
   if (error) throw error;
@@ -140,7 +145,7 @@ export async function aiListAgents(): Promise<any[]> {
 
 /** 切换会话 agent — v2.session.switchAgent({ sessionID, agent }) */
 export async function aiSwitchAgent(sessionID: string, agent: string): Promise<void> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { error } = await (client as any).v2.session.switchAgent({ sessionID, agent });
   if (error) throw error;
@@ -148,7 +153,7 @@ export async function aiSwitchAgent(sessionID: string, agent: string): Promise<v
 
 /** 会话 todo 列表 — v2.session.todo (GET /session/{sessionID}/todo), 官方协议 */
 export async function aiGetTodos(sessionID: string): Promise<any[]> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { data, error } = await (client as any).v2.session.todo({ sessionID });
   if (error) throw error;
@@ -161,7 +166,7 @@ export async function aiReplyQuestion(
   requestID: string,
   answers: string[][]
 ): Promise<void> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { error } = await (client as any).question.reply({ requestID, answers });
   if (error) throw error;
@@ -169,7 +174,7 @@ export async function aiReplyQuestion(
 
 /** 忽略 A2UI question — client.question.reject({ requestID }) (v1 路径, 告诉 AI 不再问) */
 export async function aiRejectQuestion(sessionID: string, requestID: string): Promise<void> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { error } = await (client as any).question.reject({ requestID });
   if (error) throw error;
@@ -184,7 +189,7 @@ export interface ModelInfo {
 
 /** 模型列表 — v2.model.list */
 export async function aiListModels(): Promise<ModelInfo[]> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { data, error } = await (client as any).v2.model.list();
   if (error) throw error;
@@ -207,7 +212,7 @@ export interface ProviderInfo {
 
 /** 提供商列表 — v2.provider.list */
 export async function aiListProviders(): Promise<ProviderInfo[]> {
-  assertAiReady();
+  await waitForAiReady();
   const client = getAiClient()!;
   const { data, error } = await (client as any).v2.provider.list();
   if (error) throw error;

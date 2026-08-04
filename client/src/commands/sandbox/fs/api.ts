@@ -25,6 +25,20 @@ export function assertFsReady(): void {
 }
 
 /**
+ * 等待 SDK client 就绪 (沙箱激活 + opencode warmup 探活通过后才创建).
+ * 刷新场景: 沙箱/SDK 重连期间调用 fsApi 不再立即抛错, 而是在 timeoutMs 内
+ * 轮询等待; 超时仍抛错 (兜底, 调用方 catch 处理).
+ */
+export async function waitForFsReady(timeoutMs = 8000): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (isFsReady()) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`opencode client not ready within ${timeoutMs}ms (sandbox 未激活)`);
+}
+
+/**
  * 监听 SDK 就绪事件 (opencode-ready), 回调里拿到 SDK 实例
  */
 export function onOpencodeReady(handler: (client: any) => void): () => void {

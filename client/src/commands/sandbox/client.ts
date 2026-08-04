@@ -84,6 +84,20 @@ export function isOpencodeReady(): boolean {
   return getOpencodeClient() !== null;
 }
 
+/**
+ * 等待 OpenCode SDK client 就绪 (沙箱激活 + warmup 探活通过后才创建).
+ * 刷新场景: 沙箱/SDK 重连期间调用 aiApi 不再立即失败, 而是在 timeoutMs 内
+ * 轮询等待; 超时返回 null (调用方 catch 处理).
+ */
+export async function waitForOpencodeReady(timeoutMs = 8000): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (isOpencodeReady()) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`opencode client not ready within ${timeoutMs}ms (sandbox 未激活)`);
+}
+
 export function disposeOpencodeClient(): void {
   _client = null;
   _baseUrl = null;

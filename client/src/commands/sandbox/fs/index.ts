@@ -4,7 +4,7 @@ import { BrowserModule, ClientAppContribution } from '@opensumi/ide-core-browser
 import { IFileTreeService } from '@opensumi/ide-file-tree-next/lib/common';
 import { IWorkspaceService } from '@opensumi/ide-workspace/lib/common';
 
-import { assertFsReady, getFsClient } from './api';
+import { waitForFsReady, getFsClient } from './api';
 
 /**
  * fs commands — 跨拓展 IO 统一入口 (按工具集分组维护)
@@ -171,7 +171,7 @@ export class FsCommandsContribution implements CommandContribution {
       { id: FS_CMD.LIST },
       {
         execute: async (path: string) => {
-          assertFsReady();
+          await waitForFsReady();
           // list 走 v2.fs API (不创建会话)
           const client = getFsClient()!;
           const { data, error } = await (client as any).v2.fs.list({ path });
@@ -186,7 +186,7 @@ export class FsCommandsContribution implements CommandContribution {
       { id: FS_CMD.READ },
       {
         execute: async (path: string) => {
-          assertFsReady();
+          await waitForFsReady();
           return await runShell(`cat '${path}'`);
         },
       }
@@ -196,7 +196,7 @@ export class FsCommandsContribution implements CommandContribution {
       { id: FS_CMD.WRITE },
       {
         execute: async (path: string, content: string | Uint8Array) => {
-          assertFsReady();
+          await waitForFsReady();
           const escapedPath = path.replace(/'/g, "'\\''");
           // Uint8Array 直接 base64 编码后落盘 (二进制图片/PDF 安全);
           // string 按 UTF-8 字节写入 (代码/文本)
@@ -212,7 +212,7 @@ export class FsCommandsContribution implements CommandContribution {
       { id: FS_CMD.FIND },
       {
         execute: async (path: string, pattern = '*') => {
-          assertFsReady();
+          await waitForFsReady();
           const output = await runShell(`find '${path}' -maxdepth 4 -name '${pattern}'`);
           return parseFindLines(output, path);
         },
@@ -230,7 +230,7 @@ export function installFsApi(): void {
     getClient: getFsClient,
     isReady: () => !!getFsClient(),
     list: async (path: string) => {
-      assertFsReady();
+      await waitForFsReady();
       // 列目录走 SDK v2.fs.list (裸 fetch /file?path= 的 query 解析有问题 400)
       const client = getFsClient()!;
       const { data, error } = await (client as any).v2.fs.list({ path });
@@ -243,11 +243,11 @@ export function installFsApi(): void {
       })).filter((e) => e.name.length > 0);
     },
     read: async (path: string) => {
-      assertFsReady();
+      await waitForFsReady();
       return await runShell(`cat '${path}'`);
     },
     write: async (path: string, content: string) => {
-      assertFsReady();
+      await waitForFsReady();
       const escapedPath = path.replace(/'/g, "'\\''");
       const b64 = bytesToBase64(content);
       const script = `printf '%s' '${b64}' | base64 -d > '${escapedPath}'`;
@@ -255,11 +255,11 @@ export function installFsApi(): void {
       return true;
     },
     find: async (path: string, pattern = '*') => {
-      assertFsReady();
+      await waitForFsReady();
       return parseFindLines(await runShell(`find '${path}' -maxdepth 4 -name '${pattern}'`), path);
     },
     delete: async (path: string) => {
-      assertFsReady();
+      await waitForFsReady();
       const escapedPath = path.replace(/'/g, "'\\''");
       await runShell(`rm -rf '${escapedPath}'`);
       return true;
