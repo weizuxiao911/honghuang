@@ -3,6 +3,7 @@ node_modules/
 
 # 构建产物
 out/
+dist/
 *.vsix
 
 # webview 构建产物
