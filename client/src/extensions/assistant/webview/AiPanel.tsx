@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useInjectable } from '@opensumi/ide-core-browser/lib/react-hooks/injectable-hooks';
+import { CommandService } from '@opensumi/ide-core-common';
 
 import {
   getAiClient,
@@ -18,7 +20,7 @@ import {
   aiListModels,
   aiListProviders,
 } from '../commands/api';
-import { readSession } from '../../../commands/login/api';
+import { LOGIN_SESSION_GET } from '../../../commands/login';
 import { PartRenderer } from './parts/PartRenderer';
 import { extractAssistantTodos, type TodoItem } from './parts/TodoCard';
 import { ModelPicker } from './parts/ModelPicker';
@@ -83,6 +85,18 @@ const questionSubscribers = new Set<() => void>();
 function notifyQuestionChange() { questionSubscribers.forEach((fn) => fn()); }
 
 export const AiPanel: React.FC = () => {
+  const commandService = useInjectable<CommandService>(CommandService)
+  // 冷启动/刷新时未登录不加载 — 登录后 ready+loggedIn 才拉取
+  const [loggedIn, setLoggedIn] = useState<boolean>(false)
+  useEffect(() => {
+    const update = async () => {
+      const s = await commandService.executeCommand<any>(LOGIN_SESSION_GET)
+      setLoggedIn(!!s?.userId)
+    }
+    void update()
+    window.addEventListener('taichu:login-session-changed', update)
+    return () => window.removeEventListener('taichu:login-session-changed', update)
+  }, [commandService])
   const [sessionID, setSessionID] = useState<string>('');
   const [sessions, setSessions] = useState<any[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -131,15 +145,6 @@ export const AiPanel: React.FC = () => {
       window.removeEventListener('taichu:fs-ready', check);
       window.clearInterval(id);
     };
-  }, []);
-
-  // 加载 agent/model 列表 (失败自动重试, 沙箱刚就绪时可能不完全可用;
-  // 冷启动/刷新时未登录不加载 — 登录后 ready+loggedIn 才拉取)
-  const [loggedIn, setLoggedIn] = useState<boolean>(() => !!readSession()?.userId);
-  useEffect(() => {
-    const update = () => setLoggedIn(!!readSession()?.userId);
-    window.addEventListener('taichu:login-session-changed', update);
-    return () => window.removeEventListener('taichu:login-session-changed', update);
   }, []);
 
   useEffect(() => {

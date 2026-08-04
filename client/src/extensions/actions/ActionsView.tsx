@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { SlotLocation } from '@opensumi/ide-core-browser';
 import { useInjectable } from '@opensumi/ide-core-browser/lib/react-hooks/injectable-hooks';
 import { IMainLayoutService } from '@opensumi/ide-main-layout/lib/common';
-import { readSession } from '../../commands/login/api';
+import { CommandService } from '@opensumi/ide-core-common';
+import { LOGIN_SESSION_GET } from '../../commands/login';
 
 /**
  * ActionsView — top 横条右侧 action 区 (extensions/actions/)
@@ -12,6 +13,7 @@ import { readSession } from '../../commands/login/api';
  */
 export const ActionsView: React.FC = () => {
   const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
+  const commandService = useInjectable<CommandService>(CommandService);
   const [leftVisible, setLeftVisible] = useState(false);
   const [bottomVisible, setBottomVisible] = useState(true);
   const [rightVisible, setRightVisible] = useState(true);
@@ -39,14 +41,14 @@ export const ActionsView: React.FC = () => {
     return () => disposables.forEach((d) => d.dispose());
   }, [layoutService]);
 
-  // 监听登录状态变化
+  // 监听登录状态变化 (通过 command 读取, 不直接 import api)
   useEffect(() => {
-    const update = () => {
-      const session = readSession();
+    const update = async () => {
+      const session = await commandService.executeCommand<any>(LOGIN_SESSION_GET);
       setLoggedIn(!!session?.userId);
       setUsername(session?.username || session?.userId || '');
     };
-    update();
+    void update();
     window.addEventListener('taichu:login-session-changed', update);
     return () => window.removeEventListener('taichu:login-session-changed', update);
   }, []);

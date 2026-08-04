@@ -1,10 +1,11 @@
 /**
  * login session API — 客户端登录状态读写 (跨 commands + webview 复用)
  *
- * 数据来源优先级:
- *   1. window.__TAICHU_DEPLOY_CONFIG__.userId (server.ts 注入, OAuth 登录后)
- *   2. localStorage 'taichu.login.session' (Mock 登录或 OAuth 同步副本)
- *   3. 都没有 → 未登录
+ * 数据来源: 严格只从 localStorage 'taichu.login.session' 取
+ *   - 不再兜底 __TAICHU_DEPLOY_CONFIG__: OAuth 登录完成由 writeSession 写 localStorage
+ *   - 防止 stale session (如部署配置残留 userId) 误判已登录
+ *   - runtime.ts readSession / login modules / 各扩展统一通过 taichu.session.* commands
+ *     读取 (commands/login 注册), 不再各自 import 此函数硬编码判断
  *
  * 写入 (writeSession) 同时:
  *   - 写 localStorage
@@ -15,7 +16,7 @@
  * 清除 (clearSession) 同时:
  *   - 删 localStorage
  *   - 删 window.__TAICHU_LOGIN_SESSION__
- *   - 触发 'taichu:login-session-changed' 事件
+ *   - 触发 'taichu:login-session-changed' 事件 (detail: null)
  *
  * 跨 commands/login + components/login + components/user 复用
  */
@@ -29,14 +30,6 @@ export interface LoginSession {
 const STORAGE_KEY = 'taichu.login.session';
 
 export function readSession(): LoginSession | null {
-  const cfg = (window as any).__TAICHU_DEPLOY_CONFIG__;
-  if (cfg?.userId) {
-    return {
-      username: cfg.username || cfg.userId,
-      userId: cfg.userId,
-      avatarUrl: cfg.avatarUrl || '',
-    };
-  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw) as LoginSession;

@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useInjectable } from '@opensumi/ide-core-browser/lib/react-hooks/injectable-hooks';
+import { CommandService } from '@opensumi/ide-core-common';
+import { LOGIN_SESSION_GET, LOGIN_SESSION_CLEAR } from '../../../commands/login';
 import { logout } from '../../../commands/login/api';
 
 /**
@@ -31,25 +34,20 @@ export const UserView: React.FC = () => {
   const [visible, setVisible] = useState<boolean>(false);
   const [customView, setCustomView] = useState<React.ComponentType<any> | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const commandService = useInjectable<CommandService>(CommandService);
 
-  // 读取登录 session 用于显示用户名
-  const readSessionFromStorage = () => {
-    try {
-      const raw = localStorage.getItem('taichu.login.session');
-      if (raw) return JSON.parse(raw);
-    } catch {
-      /* ignore */
-    }
-    const cfg = (window as any).__TAICHU_DEPLOY_CONFIG__;
-    return cfg?.userId ? { username: cfg.username, userId: cfg.userId } : null;
-  };
-  const [session, setSession] = useState(() => readSessionFromStorage());
+  const [session, setSession] = useState<any>(null);
 
   // 显隐事件 + 自定义 view + session 事件
   useEffect(() => {
+    const refresh = async () => {
+      const s = await commandService.executeCommand<any>(LOGIN_SESSION_GET);
+      setSession(s);
+    };
+    void refresh();
     const showHandler = () => setVisible(true);
     const hideHandler = () => setVisible(false);
-    const sessionHandler = () => setSession(readSessionFromStorage());
+    const sessionHandler = () => void refresh();
     const customHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.component) {

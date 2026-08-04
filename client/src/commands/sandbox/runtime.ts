@@ -58,6 +58,8 @@ interface RuntimeSnapshot {
   serviceName?: string;
 }
 
+import { clearSession } from '../login/api';
+
 declare const process: { env: Record<string, string | undefined> };
 
 function getGatewayUrl(): string {
@@ -211,6 +213,13 @@ export function teardownRuntime(): void {
   if (activated) {
     activated = false;
     window.dispatchEvent(new CustomEvent('taichu:fs-teardown'));
+  }
+  // 同步清本地 session (防 stale userId 残留导致 topbar/右栏误判已登录)
+  // 登出场景由 logout() 负责; 这里是 runtime 失效兜底
+  try {
+    clearSession();
+  } catch {
+    /* ignore */
   }
 }
 
