@@ -100,15 +100,12 @@ function clearRetryTimer(): void {
 }
 
 async function readSession(): Promise<LoginSession | null> {
-  const cfg = (window as any).__TAICHU_DEPLOY_CONFIG__;
-  if (cfg?.userId) {
-    return {
-      username: cfg.username,
-      userId: cfg.userId,
-      tenantId: cfg.tenantId,
-      avatarUrl: cfg.avatarUrl,
-    };
-  }
+  // 严格只从 localStorage 读取登录态:
+  //   - 未登录 → 返回 null → activateRuntime 早返 → 无 fs-loading → loading 不显示
+  //     → App 渲染编辑器骨架 + login overlay (当前页, 不跳登录页)
+  //   - 已登录 → 派发 fs-loading → loading 显到 fs-list-ready (list 接口成功) 才关
+  // 不再兜底 __TAICHU_DEPLOY_CONFIG__: OAuth 登录完成由 login 模块写 localStorage
+  // (writeSession), 部署配置仅作一次性服务端注入, 不应绕过 localStorage 触发沙箱激活
   try {
     const raw = localStorage.getItem('taichu.login.session');
     if (raw) return JSON.parse(raw) as LoginSession;

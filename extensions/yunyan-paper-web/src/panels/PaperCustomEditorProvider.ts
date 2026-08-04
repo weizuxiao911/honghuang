@@ -128,8 +128,11 @@ export class PaperCustomEditorProvider implements vscode.CustomTextEditorProvide
         const state = resolvePaperFromContent(doc.uri.fsPath, doc.getText())
         if (state.status !== 'empty') {
           // eslint-disable-next-line no-console
-          console.log('[paper] self-heal reopen:', doc.uri.toString())
-          void vscode.commands.executeCommand('vscode.open', doc.uri).catch(() => undefined)
+          console.log('[paper] self-heal reopen (edit):', doc.uri.toString())
+          // 强制以 custom editor (编辑态) 打开, 避免某些路径默认走预览/preview
+          void vscode.commands
+            .executeCommand('vscode.openWith', doc.uri, PAPER_CUSTOM_EDITOR_VIEW_TYPE)
+            .catch(() => undefined)
           return
         }
       }

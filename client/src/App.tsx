@@ -7,8 +7,8 @@ import '@codeblitzjs/ide-core/languages';
 
 import { slots } from './config/slots';
 import { LoginCommandsModule } from './commands/login';
-import { SandboxCommandsModule, installSandboxClient, installRuntimeAutoActivate } from './commands/sandbox';
-import { FsCommandsModule, installFsApi, bindFsSync } from './commands/sandbox/fs';
+import { SandboxCommandsModule } from './commands/sandbox';
+import { FsCommandsModule } from './commands/sandbox/fs';
 import { TerminalModule } from './commands/sandbox/terminal';
 import { TerminalNextModule } from '@opensumi/ide-terminal-next/lib/browser';
 import { ExplorerGateModule } from './commands/explorer-gate';
@@ -22,11 +22,9 @@ import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';
 import './styles/overrides.css';
 
-// App 渲染前手动装 runtime 拉取 + SDK 监听 + fs API + 沙箱读写同步 (BrowserModule.onDidStart 钩子时序不可靠)
-installRuntimeAutoActivate();
-installSandboxClient();
-installFsApi();
-bindFsSync();
+// 沙箱模块挂载 (runtime 激活 / SDK 监听 / fs API / 沙箱读写同步) 移到 index.tsx
+// 顶层, 根据登录态条件调用 — 见 index.tsx 的 "访问判断登录状态" 守卫.
+// BrowserModule.onDidStart 钩子时序不可靠, 在 App 渲染前更可控.
 
 export const App: React.FC = () => {
   return (
