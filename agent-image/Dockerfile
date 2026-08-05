@@ -8,6 +8,8 @@
 
 FROM node:22-slim
 
+USER root
+
 ENV TZ=Asia/Shanghai \
     DEBIAN_FRONTEND=noninteractive \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
